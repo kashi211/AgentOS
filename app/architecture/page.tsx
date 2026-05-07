@@ -28,8 +28,8 @@ const techStack = [
     color: "#0284c7",
     icon: Cpu,
     items: [
-      { name: "Claude 3.5 Sonnet", desc: "Primary reasoning & code gen" },
-      { name: "GPT-4o", desc: "Fallback & multi-provider support" },
+      { name: "Claude Opus 4.7", desc: "Primary reasoning & code gen" },
+      { name: "Claude Sonnet 4.6 / o3", desc: "Fast tasks & fallback" },
       { name: "Tool Use / Function Calling", desc: "Structured agent actions" },
       { name: "Anthropic + OpenAI SDK", desc: "Unified provider interface" },
     ],
@@ -61,7 +61,7 @@ const dataFlows = [
   { from: "FastAPI", to: "LangGraph", label: "route task to graph", protocol: "Internal" },
   { from: "LangGraph", to: "CEO Agent", label: "assign goal", protocol: "Agent call" },
   { from: "CEO Agent", to: "Sub-agents", label: "delegate subtasks", protocol: "Agent call" },
-  { from: "Sub-agents", to: "Claude / GPT-4o", label: "completion request", protocol: "HTTPS" },
+  { from: "Sub-agents", to: "Claude Opus 4.7 / o3", label: "completion request", protocol: "HTTPS" },
   { from: "Sub-agents", to: "PostgreSQL + Redis", label: "write memory", protocol: "SQL / Cache" },
   { from: "LangGraph", to: "WebSocket", label: "stream events", protocol: "WS" },
   { from: "WebSocket", to: "Next.js UI", label: "live agent feed", protocol: "WS" },
@@ -90,7 +90,7 @@ export default function ArchitecturePage() {
           </h1>
           <p className="text-base max-w-2xl" style={{ color: "var(--muted)" }}>
             A layered architecture: Next.js frontend communicates over WebSockets with a FastAPI
-            backend that orchestrates Claude + GPT-4o agents via LangGraph, persisting state in
+            backend that orchestrates Claude Opus 4.7 agents via LangGraph, persisting state in
             PostgreSQL, Redis, and Pinecone.
           </p>
         </div>
@@ -205,7 +205,7 @@ export default function ArchitecturePage() {
               {[
                 { label: "PostgreSQL", sub: "Neon · Tasks & Agents", color: "#059669", icon: "🗄️" },
                 { label: "Redis", sub: "Upstash · Short-term Memory", color: "#dc2626", icon: "⚡" },
-                { label: "Claude / GPT-4o", sub: "Multi-provider AI", color: "#0284c7", icon: "🤖" },
+                { label: "Claude Opus 4.7", sub: "Multi-provider AI", color: "#0284c7", icon: "🤖" },
                 { label: "Pinecone", sub: "Vector Memory", color: "#7c3aed", icon: "🔮" },
                 { label: "Cloudflare R2", sub: "Generated Artefacts", color: "#d97706", icon: "📦" },
               ].map((item) => (
@@ -312,7 +312,7 @@ export default function ArchitecturePage() {
               </div>
               <div className="flex flex-col items-end gap-1">
                 <span className="text-xs" style={{ color: "var(--muted)" }}>Model</span>
-                <span className="text-xs font-semibold" style={{ color: "var(--accent)" }}>Claude 3.5</span>
+                <span className="text-xs font-semibold" style={{ color: "var(--accent)" }}>Opus 4.7</span>
               </div>
             </div>
           ))}
@@ -338,9 +338,9 @@ export default function ArchitecturePage() {
                 "Agent execution can span minutes with dozens of sub-events (thinking, tool call, output). SSE would work for one-way streaming but WebSockets let the UI send interrupts and feedback mid-run.",
             },
             {
-              title: "Why multi-provider AI (Claude + GPT-4o)?",
+              title: "Why multi-provider AI (Claude Opus 4.7 + o3)?",
               body:
-                "Claude 3.5 Sonnet leads on code reasoning and long-context tasks; GPT-4o provides fallback and cost optimisation for simpler sub-tasks. A provider abstraction layer makes swapping models a config change.",
+                "Claude Opus 4.7 leads on code reasoning and long-context tasks; Claude Sonnet 4.6 handles faster, lighter sub-tasks at lower cost; OpenAI o3 provides cross-provider redundancy. A provider abstraction layer makes swapping models a config change.",
             },
           ].map(({ title, body }) => (
             <div key={title} className="card p-5">

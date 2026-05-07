@@ -49,7 +49,7 @@ const phases: Phase[] = [
       { name: "BaseAgent class with system prompt, memory, tool registry", status: "todo" },
       { name: "CEO Agent: goal intake, task breakdown, delegation", status: "todo" },
       { name: "Planner Agent: structured subtask graph with LangGraph", status: "todo" },
-      { name: "Developer Agent: Claude 3.5 tool use + code output", status: "todo" },
+      { name: "Developer Agent: Claude Opus 4.7 tool use + code output", status: "todo" },
       { name: "QA Agent: review outputs, return structured pass/fail", status: "todo" },
       { name: "Writer Agent: README, docs, report generation", status: "todo" },
       { name: "Agent memory: Redis short-term + PostgreSQL long-term", status: "todo" },
@@ -124,7 +124,7 @@ const phases: Phase[] = [
       { name: "User auth (NextAuth.js) + per-user agent sandboxes", status: "stretch" },
       { name: "Cost tracker: show $ spent per task per agent", status: "stretch" },
       { name: "Export task results as PDF / ZIP artefacts", status: "stretch" },
-      { name: "Multi-provider routing: Claude for reasoning, GPT-4o for speed", status: "stretch" },
+      { name: "Multi-provider routing: Claude Opus 4.7 for reasoning, Sonnet 4.6 for speed", status: "stretch" },
     ],
   },
 ];
@@ -323,7 +323,7 @@ export default function PlanPage() {
               { label: "API-first", body: "Backend contracts defined before UI is built. OpenAPI spec maintained throughout." },
               { label: "Type-safe", body: "TypeScript on the frontend, Pydantic v2 on the backend. No implicit any." },
               { label: "Fail loudly", body: "Agent errors are surfaced in the UI, not silently swallowed. Every failure has a visible trace." },
-              { label: "Provider-agnostic", body: "Model routing is a config change. Claude, GPT-4o, and future models are hot-swappable per agent." },
+              { label: "Provider-agnostic", body: "Model routing is a config change. Claude Opus 4.7, Sonnet 4.6, and o3 are hot-swappable per agent." },
             ].map(({ label, body }) => (
               <div key={label}>
                 <div className="text-xs font-bold mb-1" style={{ color: "var(--accent)" }}>{label}</div>

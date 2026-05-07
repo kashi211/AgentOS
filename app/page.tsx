@@ -198,7 +198,7 @@ export default function Home() {
                 { label: "Next.js 15", cat: "Frontend" },
                 { label: "FastAPI", cat: "Backend" },
                 { label: "PostgreSQL", cat: "Database" },
-                { label: "Claude 3.5 + GPT-4o", cat: "AI" },
+                { label: "Claude Opus 4.7 + o3", cat: "AI" },
                 { label: "Vercel AI SDK", cat: "Streaming" },
                 { label: "Redis (Upstash)", cat: "Memory" },
                 { label: "Pinecone", cat: "Vector DB" },
