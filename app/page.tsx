@@ -59,9 +59,9 @@ export default function Home() {
           </div>
 
           <h1 className="text-5xl font-bold leading-tight mb-5">
-            <span style={{ color: "var(--foreground)" }}>Where AI specialists</span>
+            <span style={{ color: "var(--foreground)" }}>Build your team of</span>
             <br />
-            <span className="gradient-text">collaborate and ship.</span>
+            <span className="gradient-text">collaborative AI agents.</span>
           </h1>
 
           <p className="text-lg max-w-2xl mb-8" style={{ color: "var(--muted)" }}>
