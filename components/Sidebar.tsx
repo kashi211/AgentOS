@@ -35,7 +35,7 @@ export default function Sidebar() {
     >
       {/* Logo */}
       <div className="flex items-center gap-3 px-5 py-4 border-b" style={{ borderColor: "var(--card-border)" }}>
-        <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0">
+        <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0" style={{ background: "#0a0a0f" }}>
           <Image src="/agentos.png" alt="AgentOS" width={32} height={32} className="w-full h-full object-cover" />
         </div>
         <div>

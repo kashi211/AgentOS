@@ -17,10 +17,6 @@ export const metadata: Metadata = {
   title: "AgentOS — Multi-Agent AI Company",
   description:
     "A system where specialized AI agents collaborate like a real team to complete complex tasks autonomously.",
-  icons: {
-    icon: "/agentos.png",
-    apple: "/agentos.png",
-  },
 };
 
 export default function RootLayout({
