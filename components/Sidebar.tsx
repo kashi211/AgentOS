@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -8,7 +9,6 @@ import {
   Map,
   Bot,
   ListTodo,
-  Zap,
   ChevronRight,
 } from "lucide-react";
 
@@ -34,12 +34,9 @@ export default function Sidebar() {
       className="h-full flex flex-col"
     >
       {/* Logo */}
-      <div className="flex items-center gap-3 px-5 py-5 border-b" style={{ borderColor: "var(--card-border)" }}>
-        <div
-          className="w-8 h-8 rounded-lg flex items-center justify-center"
-          style={{ background: "var(--accent)", boxShadow: "0 2px 8px rgba(79,70,229,0.3)" }}
-        >
-          <Zap size={16} className="text-white" />
+      <div className="flex items-center gap-3 px-5 py-4 border-b" style={{ borderColor: "var(--card-border)" }}>
+        <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0">
+          <Image src="/agentos.png" alt="AgentOS" width={32} height={32} className="w-full h-full object-cover" />
         </div>
         <div>
           <div className="font-bold text-sm leading-none" style={{ color: "var(--foreground)" }}>AgentOS</div>
