@@ -95,15 +95,12 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
           className="rounded-lg p-3"
           style={{ background: "#f0fdf4", border: "1px solid #bbf7d0" }}
         >
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full pulse-dot" style={{ background: "var(--success)" }} />
             <span className="text-xs font-semibold" style={{ color: "var(--success)" }}>
               Alpha Build
             </span>
           </div>
-          <p className="text-xs" style={{ color: "var(--muted)" }}>
-            Portfolio project by Kashish
-          </p>
         </div>
       </div>
     </aside>
