@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -10,6 +11,8 @@ import {
   Bot,
   ListTodo,
   ChevronRight,
+  Menu,
+  X,
 } from "lucide-react";
 
 const nav = [
@@ -20,7 +23,7 @@ const nav = [
   { href: "/tasks", label: "Tasks", icon: ListTodo, soon: true },
 ];
 
-export default function Sidebar() {
+function SidebarContent({ onClose }: { onClose?: () => void }) {
   const pathname = usePathname();
 
   return (
@@ -34,14 +37,21 @@ export default function Sidebar() {
       className="h-full flex flex-col"
     >
       {/* Logo */}
-      <div className="flex items-center gap-3 px-5 py-4 border-b" style={{ borderColor: "var(--card-border)" }}>
-        <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0" style={{ background: "#0a0a0f" }}>
-          <Image src="/agentos.png" alt="AgentOS" width={32} height={32} className="w-full h-full object-cover" />
+      <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: "var(--card-border)" }}>
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0" style={{ background: "#0a0a0f" }}>
+            <Image src="/agentos.png" alt="AgentOS" width={32} height={32} className="w-full h-full object-cover" />
+          </div>
+          <div>
+            <div className="font-bold text-sm leading-none" style={{ color: "var(--foreground)" }}>AgentOS</div>
+            <div className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>Multi-Agent AI</div>
+          </div>
         </div>
-        <div>
-          <div className="font-bold text-sm leading-none" style={{ color: "var(--foreground)" }}>AgentOS</div>
-          <div className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>Multi-Agent AI</div>
-        </div>
+        {onClose && (
+          <button onClick={onClose} className="p-1 rounded-md" style={{ color: "var(--muted)" }}>
+            <X size={18} />
+          </button>
+        )}
       </div>
 
       {/* Nav */}
@@ -55,6 +65,7 @@ export default function Sidebar() {
             <Link
               key={href}
               href={soon ? "#" : href}
+              onClick={onClose}
               className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group relative"
               style={{
                 background: active ? "var(--accent-light)" : "transparent",
@@ -96,5 +107,55 @@ export default function Sidebar() {
         </div>
       </div>
     </aside>
+  );
+}
+
+export default function Sidebar() {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      {/* Mobile top bar */}
+      <div
+        className="lg:hidden fixed top-0 left-0 right-0 z-40 flex items-center gap-3 px-4 h-14 border-b"
+        style={{ background: "#ffffff", borderColor: "var(--card-border)" }}
+      >
+        <button
+          onClick={() => setOpen(true)}
+          className="p-1.5 rounded-lg"
+          style={{ color: "var(--foreground)" }}
+        >
+          <Menu size={20} />
+        </button>
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-md overflow-hidden" style={{ background: "#0a0a0f" }}>
+            <Image src="/agentos.png" alt="AgentOS" width={28} height={28} className="w-full h-full object-cover" />
+          </div>
+          <span className="font-bold text-sm" style={{ color: "var(--foreground)" }}>AgentOS</span>
+        </div>
+      </div>
+
+      {/* Desktop sidebar — always visible */}
+      <div className="hidden lg:flex h-full">
+        <SidebarContent />
+      </div>
+
+      {/* Mobile drawer backdrop */}
+      {open && (
+        <div
+          className="fixed inset-0 z-50 lg:hidden"
+          style={{ background: "rgba(0,0,0,0.35)" }}
+          onClick={() => setOpen(false)}
+        />
+      )}
+
+      {/* Mobile drawer */}
+      <div
+        className="fixed inset-y-0 left-0 z-50 lg:hidden transition-transform duration-300"
+        style={{ transform: open ? "translateX(0)" : "translateX(-100%)" }}
+      >
+        <SidebarContent onClose={() => setOpen(false)} />
+      </div>
+    </>
   );
 }

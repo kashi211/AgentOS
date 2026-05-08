@@ -69,7 +69,7 @@ const dataFlows = [
 
 export default function ArchitecturePage() {
   return (
-    <div className="min-h-full grid-bg px-10 py-12">
+    <div className="min-h-full grid-bg px-4 sm:px-8 lg:px-10 py-12">
       <div className="max-w-5xl">
 
         {/* Header */}
@@ -257,7 +257,7 @@ export default function ArchitecturePage() {
 
         {/* Layer breakdown */}
         <h2 className="text-xl font-bold mb-5" style={{ color: "var(--foreground)" }}>Layer Breakdown</h2>
-        <div className="grid grid-cols-2 gap-4 mb-12">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-12">
           {techStack.map(({ layer, color, icon: Icon, items }) => (
             <div key={layer} className="card p-5">
               <div className="flex items-center gap-2 mb-4">

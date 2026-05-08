@@ -44,7 +44,7 @@ export default function Home() {
   return (
     <div className="min-h-full grid-bg">
       {/* Hero */}
-      <section className="relative px-10 pt-20 pb-16">
+      <section className="relative px-4 sm:px-8 lg:px-10 pt-8 sm:pt-16 lg:pt-20 pb-16">
         <div className="relative max-w-4xl">
           <div
             className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium mb-6"
@@ -97,7 +97,7 @@ export default function Home() {
       </section>
 
       {/* Agent Roster */}
-      <section className="px-10 pb-12">
+      <section className="px-4 sm:px-8 lg:px-10 pb-12">
         <div className="max-w-4xl">
           <p className="text-xs font-semibold uppercase tracking-widest mb-4" style={{ color: "var(--muted-light)" }}>
             The Team
@@ -125,7 +125,7 @@ export default function Home() {
       </section>
 
       {/* How it works */}
-      <section className="px-10 pb-12">
+      <section className="px-4 sm:px-8 lg:px-10 pb-12">
         <div className="max-w-4xl">
           <h2 className="text-xl font-bold mb-2" style={{ color: "var(--foreground)" }}>How it works</h2>
           <p className="text-sm mb-8" style={{ color: "var(--muted)" }}>
@@ -160,7 +160,7 @@ export default function Home() {
           </div>
 
           {/* Feature grid */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {features.map(({ icon: Icon, title, desc }) => (
               <div key={title} className="card card-hover p-5">
                 <div
@@ -180,7 +180,7 @@ export default function Home() {
       </section>
 
       {/* Tech stack bar */}
-      <section className="px-10 pb-20">
+      <section className="px-4 sm:px-8 lg:px-10 pb-20">
         <div className="max-w-4xl">
           <div
             className="rounded-xl p-5"

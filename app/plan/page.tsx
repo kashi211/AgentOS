@@ -156,7 +156,7 @@ export default function PlanPage() {
   const activeTasks = phases.flatMap((p) => p.tasks).filter((t) => t.status === "active").length;
 
   return (
-    <div className="min-h-full grid-bg px-10 py-12">
+    <div className="min-h-full grid-bg px-4 sm:px-8 lg:px-10 py-12">
       <div className="max-w-4xl">
 
         {/* Header */}
@@ -318,7 +318,7 @@ export default function PlanPage() {
           }}
         >
           <h3 className="text-sm font-bold mb-3" style={{ color: "var(--foreground)" }}>Engineering Principles</h3>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {[
               { label: "API-first", body: "Backend contracts defined before UI is built. OpenAPI spec maintained throughout." },
               { label: "Type-safe", body: "TypeScript on the frontend, Pydantic v2 on the backend. No implicit any." },
