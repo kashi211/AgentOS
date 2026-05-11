@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
-import { Send, Loader2, CheckCircle2, XCircle, Clock, RefreshCw, FileCode, Download, Play, Square, Terminal, Globe, Code } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Send, Loader2, CheckCircle2, XCircle, Clock, RefreshCw, ExternalLink } from "lucide-react";
+import Link from "next/link";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 const WS  = process.env.NEXT_PUBLIC_WS_URL  ?? "ws://localhost:8000";
@@ -57,11 +58,6 @@ const statusConfig: Record<TaskStatus, { label: string; color: string; icon: typ
   failed:    { label: "Failed",    color: "#dc2626", icon: XCircle },
 };
 
-interface TaskFile {
-  path: string;
-  size: number;
-}
-
 export default function TasksPage() {
   const [goal, setGoal] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -70,23 +66,9 @@ export default function TasksPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [liveEvents, setLiveEvents] = useState<LiveEvent[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
-  const [files, setFiles] = useState<TaskFile[]>([]);
-  const [selectedFile, setSelectedFile] = useState<string | null>(null);
-  const [fileContent, setFileContent] = useState<string>("");
-  const [loadingFile, setLoadingFile] = useState(false);
-  // Terminal / run state
-  const [terminalLines, setTerminalLines] = useState<string[]>([]);
-  const [terminalInput, setTerminalInput] = useState("");
-  const [running, setRunning] = useState(false);
-  const [terminalFile, setTerminalFile] = useState<string | null>(null);
-  // Preview panel tab: "preview" | "code" | "terminal"
-  const [activePanel, setActivePanel] = useState<"preview" | "code" | "terminal">("preview");
   const feedRef = useRef<HTMLDivElement>(null);
-  const terminalRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
-  const runWsRef = useRef<WebSocket | null>(null);
 
-  // Fetch task list
   const fetchTasks = async () => {
     try {
       const res = await fetch(`${API}/tasks/`);
@@ -100,120 +82,16 @@ export default function TasksPage() {
     return () => clearInterval(interval);
   }, []);
 
-  // Auto-scroll feed
   useEffect(() => {
     feedRef.current?.scrollTo({ top: feedRef.current.scrollHeight, behavior: "smooth" });
   }, [liveEvents, messages]);
 
-  const fetchFiles = async (taskId: string) => {
-    try {
-      const res = await fetch(`${API}/tasks/${taskId}/files`);
-      if (res.ok) setFiles(await res.json());
-    } catch {}
-  };
-
-  const viewFile = async (taskId: string, filePath: string) => {
-    setSelectedFile(filePath);
-    setActivePanel(filePath.endsWith(".html") ? "preview" : "code");
-    setLoadingFile(true);
-    try {
-      const res = await fetch(`${API}/tasks/${taskId}/files/${filePath}`);
-      if (res.ok) setFileContent(await res.text());
-    } finally {
-      setLoadingFile(false);
-    }
-  };
-
-  // Auto-scroll terminal
-  useEffect(() => {
-    terminalRef.current?.scrollTo({ top: terminalRef.current.scrollHeight });
-  }, [terminalLines]);
-
-  const stopRun = useCallback(() => {
-    runWsRef.current?.close();
-    runWsRef.current = null;
-    setRunning(false);
-  }, []);
-
-  const runFile = async (taskId: string, filePath: string) => {
-    stopRun();
-    setTerminalFile(filePath);
-    setTerminalLines([`$ python3 ${filePath}`, ""]);
-    setRunning(true);
-    setActivePanel("terminal");
-
-    let runId: string;
-    try {
-      const res = await fetch(`${API}/tasks/${taskId}/run`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ file: filePath }),
-      });
-      if (!res.ok) { setTerminalLines((p) => [...p, "[error starting process]"]); setRunning(false); return; }
-      ({ run_id: runId } = await res.json());
-    } catch {
-      setTerminalLines((p) => [...p, "[network error]"]);
-      setRunning(false);
-      return;
-    }
-
-    const ws = new WebSocket(`${WS}/tasks/run/${runId}`);
-    runWsRef.current = ws;
-
-    ws.onmessage = (e) => {
-      const chunk: string = e.data;
-      setTerminalLines((prev) => {
-        const lines = [...prev];
-        const parts = chunk.split(/(\r\n|\n|\r)/);
-        for (const part of parts) {
-          if (part === "\r\n" || part === "\n" || part === "\r") {
-            lines.push("");
-          } else if (part) {
-            if (lines.length === 0) lines.push("");
-            lines[lines.length - 1] += part;
-          }
-        }
-        return lines;
-      });
-    };
-
-    ws.onclose = () => {
-      setRunning(false);
-      runWsRef.current = null;
-    };
-
-    ws.onerror = () => {
-      setTerminalLines((p) => [...p, "[connection error]"]);
-      setRunning(false);
-    };
-  };
-
-  const sendInput = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" && runWsRef.current?.readyState === WebSocket.OPEN) {
-      const line = terminalInput + "\n";
-      runWsRef.current.send(line);
-      setTerminalLines((p) => [...p.slice(0, -1), (p[p.length - 1] ?? "") + terminalInput, ""]);
-      setTerminalInput("");
-    }
-  };
-
-  // Select a task and subscribe to its WS feed
   const selectTask = async (taskId: string) => {
-    stopRun();
     setSelectedId(taskId);
     setLiveEvents([]);
-    setFiles([]);
-    setSelectedFile(null);
-    setFileContent("");
-    setTerminalLines([]);
-    setTerminalFile(null);
-    setActivePanel("preview");
     setLoadingMessages(true);
-
-    // Close previous WS
     wsRef.current?.close();
 
-    // Load existing messages
     try {
       const res = await fetch(`${API}/tasks/${taskId}`);
       if (res.ok) {
@@ -224,19 +102,14 @@ export default function TasksPage() {
       setLoadingMessages(false);
     }
 
-    // Load files
-    fetchFiles(taskId);
-
-    // Open WebSocket for live events
     const ws = new WebSocket(`${WS}/ws/${taskId}`);
     ws.onmessage = (e) => {
       const event: LiveEvent = JSON.parse(e.data);
       setLiveEvents((prev) => [...prev, event]);
-      // Refresh task status and files when done
       setTasks((prev) =>
         prev.map((t) => {
           if (t.id !== taskId) return t;
-          if (event.type === "done") { fetchFiles(taskId); return { ...t, status: "done" }; }
+          if (event.type === "done") return { ...t, status: "done" };
           if (event.type === "error") return { ...t, status: "failed" };
           if (event.agent === "ceo") return { ...t, status: "planning" };
           if (event.agent === "developer") return { ...t, status: "executing" };
@@ -287,10 +160,9 @@ export default function TasksPage() {
       <div className="px-4 sm:px-8 lg:px-10 pt-8 pb-6 border-b" style={{ borderColor: "var(--card-border)" }}>
         <h1 className="text-2xl font-bold mb-1" style={{ color: "var(--foreground)" }}>Tasks</h1>
         <p className="text-sm" style={{ color: "var(--muted)" }}>
-          Submit a goal and watch your agent team execute it in real time.
+          Submit a goal and watch your agent team build it in real time.
         </p>
 
-        {/* Goal input */}
         <div className="flex gap-2 mt-4">
           <textarea
             className="flex-1 px-4 py-3 rounded-xl text-sm resize-none border outline-none transition-all"
@@ -301,7 +173,7 @@ export default function TasksPage() {
               minHeight: "52px",
               maxHeight: "120px",
             }}
-            placeholder='e.g. "Build a Python REST API with FastAPI that manages a todo list"'
+            placeholder='e.g. "Build a calculator web app" or "Create a todo list with local storage"'
             value={goal}
             rows={1}
             onChange={(e) => setGoal(e.target.value)}
@@ -321,7 +193,7 @@ export default function TasksPage() {
         </div>
       </div>
 
-      {/* Body — task list + feed */}
+      {/* Body */}
       <div className="flex flex-1 overflow-hidden">
 
         {/* Task list */}
@@ -355,7 +227,7 @@ export default function TasksPage() {
                   style={{
                     borderColor: "var(--card-border)",
                     background: active ? "var(--accent-light)" : "transparent",
-                    borderLeft: active ? `3px solid var(--accent)` : "3px solid transparent",
+                    borderLeft: active ? "3px solid var(--accent)" : "3px solid transparent",
                   }}
                 >
                   <div className="flex items-center gap-2 mb-1">
@@ -372,6 +244,17 @@ export default function TasksPage() {
                   <p className="text-xs mt-1" style={{ color: "var(--muted-light)" }}>
                     {new Date(task.created_at).toLocaleTimeString()}
                   </p>
+                  {task.status === "done" && (
+                    <Link
+                      href={`/preview/${task.id}`}
+                      target="_blank"
+                      onClick={(e) => e.stopPropagation()}
+                      className="inline-flex items-center gap-1 mt-2 text-xs font-semibold px-2 py-1 rounded-md"
+                      style={{ background: "var(--accent)", color: "#fff" }}
+                    >
+                      <ExternalLink size={10} /> View Project
+                    </Link>
+                  )}
                 </button>
               );
             })
@@ -406,31 +289,35 @@ export default function TasksPage() {
                       <span className="text-sm font-medium truncate flex-1" style={{ color: "var(--foreground)" }}>
                         {selectedTask.goal}
                       </span>
-                      {files.length > 0 && (
-                        <span className="text-xs px-2 py-0.5 rounded-full font-medium shrink-0" style={{ background: "rgba(2,132,199,0.08)", color: "#0284c7", border: "1px solid rgba(2,132,199,0.15)" }}>
-                          {files.length} file{files.length !== 1 ? "s" : ""}
-                        </span>
+                      {selectedTask.status === "done" && (
+                        <Link
+                          href={`/preview/${selectedTask.id}`}
+                          target="_blank"
+                          className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
+                          style={{ background: "var(--accent)", boxShadow: "0 2px 8px rgba(79,70,229,0.25)" }}
+                        >
+                          <ExternalLink size={12} /> View Project
+                        </Link>
                       )}
                     </>
                   );
                 })()}
               </div>
 
-              {/* Events + Files side by side */}
-              <div className="flex flex-1 overflow-hidden">
-                {/* Events feed */}
-                <div ref={feedRef} className="flex-1 overflow-y-auto p-6 space-y-3">
-                  {loadingMessages ? (
-                    <div className="flex justify-center pt-8">
-                      <Loader2 size={20} className="animate-spin" style={{ color: "var(--muted)" }} />
-                    </div>
-                  ) : allFeedItems.length === 0 ? (
-                    <div className="text-center pt-8">
-                      <Loader2 size={20} className="animate-spin mx-auto mb-2" style={{ color: "var(--accent)" }} />
-                      <p className="text-sm" style={{ color: "var(--muted)" }}>Agents are starting up…</p>
-                    </div>
-                  ) : (
-                    allFeedItems.map((item) => {
+              {/* Events */}
+              <div ref={feedRef} className="flex-1 overflow-y-auto p-6 space-y-3">
+                {loadingMessages ? (
+                  <div className="flex justify-center pt-8">
+                    <Loader2 size={20} className="animate-spin" style={{ color: "var(--muted)" }} />
+                  </div>
+                ) : allFeedItems.length === 0 ? (
+                  <div className="text-center pt-8">
+                    <Loader2 size={20} className="animate-spin mx-auto mb-2" style={{ color: "var(--accent)" }} />
+                    <p className="text-sm" style={{ color: "var(--muted)" }}>Agents are starting up…</p>
+                  </div>
+                ) : (
+                  <>
+                    {allFeedItems.map((item) => {
                       const color = agentColor[item.agent_role] ?? "#64748b";
                       const icon = agentIcon[item.agent_role] ?? "⚙️";
                       return (
@@ -471,203 +358,29 @@ export default function TasksPage() {
                           </div>
                         </div>
                       );
-                    })
-                  )}
-                </div>
+                    })}
 
-                {/* Files panel — only shown when files exist */}
-                {files.length > 0 && (
-                  <div className="w-80 shrink-0 border-l flex flex-col overflow-hidden" style={{ borderColor: "var(--card-border)", background: "#fafafa" }}>
-                    {/* Panel header */}
-                    <div className="px-4 py-2.5 border-b flex items-center justify-between" style={{ borderColor: "var(--card-border)" }}>
-                      <span className="text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5" style={{ color: "var(--muted-light)" }}>
-                        <FileCode size={12} /> Output Files
-                      </span>
-                      <button onClick={() => selectedId && fetchFiles(selectedId)} className="p-1 rounded" style={{ color: "var(--muted)" }}>
-                        <RefreshCw size={12} />
-                      </button>
-                    </div>
-
-                    {/* File list */}
-                    <div className="overflow-y-auto border-b" style={{ borderColor: "var(--card-border)" }}>
-                      {files.map((f) => {
-                        const isPy = f.path.endsWith(".py");
-                        const isActive = selectedFile === f.path;
-                        return (
-                          <div
-                            key={f.path}
-                            className="flex items-center border-b"
-                            style={{
-                              borderColor: "var(--card-border)",
-                              background: isActive ? "var(--accent-light)" : "transparent",
-                              borderLeft: isActive ? "3px solid var(--accent)" : "3px solid transparent",
-                            }}
-                          >
-                            <button
-                              className="flex-1 text-left px-3 py-2 text-xs"
-                              style={{ color: isActive ? "var(--accent)" : "var(--foreground)", fontFamily: "var(--font-mono)" }}
-                              onClick={() => selectedId && viewFile(selectedId, f.path)}
-                            >
-                              <div className="truncate">{f.path}</div>
-                              <div style={{ color: "var(--muted-light)" }}>{(f.size / 1024).toFixed(1)} KB</div>
-                            </button>
-                            {isPy && (
-                              <button
-                                onClick={() => selectedId && runFile(selectedId, f.path)}
-                                className="p-2 mr-2 rounded-md text-xs font-semibold flex items-center gap-1 shrink-0"
-                                style={{
-                                  background: running && terminalFile === f.path ? "rgba(220,38,38,0.08)" : "rgba(5,150,105,0.08)",
-                                  color: running && terminalFile === f.path ? "#dc2626" : "#059669",
-                                  border: `1px solid ${running && terminalFile === f.path ? "rgba(220,38,38,0.2)" : "rgba(5,150,105,0.2)"}`,
-                                }}
-                                title={running && terminalFile === f.path ? "Restart" : "Run"}
-                              >
-                                <Play size={11} />
-                                Run
-                              </button>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    {/* Tabs + content area */}
-                    {selectedFile && (
-                      <div className="flex border-b shrink-0" style={{ borderColor: "var(--card-border)" }}>
-                        {selectedFile.endsWith(".html") && (
-                          <button
-                            onClick={() => setActivePanel("preview")}
-                            className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 transition-colors"
-                            style={{
-                              borderBottomColor: activePanel === "preview" ? "var(--accent)" : "transparent",
-                              color: activePanel === "preview" ? "var(--accent)" : "var(--muted)",
-                            }}
-                          >
-                            <Globe size={11} /> Preview
-                          </button>
-                        )}
-                        <button
-                          onClick={() => setActivePanel("code")}
-                          className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 transition-colors"
-                          style={{
-                            borderBottomColor: activePanel === "code" ? "var(--accent)" : "transparent",
-                            color: activePanel === "code" ? "var(--accent)" : "var(--muted)",
-                          }}
+                    {/* Project link card — shown inline when done */}
+                    {selectedTask?.status === "done" && (
+                      <div
+                        className="rounded-xl p-5 flex items-center justify-between"
+                        style={{ background: "var(--accent-light)", border: "1px solid rgba(79,70,229,0.2)" }}
+                      >
+                        <div>
+                          <p className="text-sm font-semibold" style={{ color: "var(--accent)" }}>Project ready</p>
+                          <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>View files, demo the app, and download the code.</p>
+                        </div>
+                        <Link
+                          href={`/preview/${selectedTask.id}`}
+                          target="_blank"
+                          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white shrink-0"
+                          style={{ background: "var(--accent)" }}
                         >
-                          <Code size={11} /> Code
-                        </button>
-                        {terminalFile && (
-                          <button
-                            onClick={() => setActivePanel("terminal")}
-                            className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 transition-colors"
-                            style={{
-                              borderBottomColor: activePanel === "terminal" ? "var(--accent)" : "transparent",
-                              color: activePanel === "terminal" ? "var(--accent)" : "var(--muted)",
-                            }}
-                          >
-                            <Terminal size={11} /> Terminal
-                            {running && <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />}
-                          </button>
-                        )}
-                        <div className="flex-1" />
-                        {selectedFile.endsWith(".html") && selectedId && (
-                          <a
-                            href={`/preview/${selectedId}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="flex items-center gap-1 px-2 py-1 mx-1 rounded text-xs font-medium"
-                            style={{ background: "var(--accent-light)", color: "var(--accent)", border: "1px solid rgba(79,70,229,0.2)" }}
-                            title="Open full screen"
-                          >
-                            <Globe size={11} /> Full screen
-                          </a>
-                        )}
-                        <a
-                          href={`${API}/tasks/${selectedId}/files/${selectedFile}`}
-                          download={selectedFile.split("/").pop()}
-                          className="flex items-center px-3"
-                          style={{ color: "var(--muted)" }}
-                          title="Download"
-                        >
-                          <Download size={12} />
-                        </a>
+                          <ExternalLink size={14} /> Open Project
+                        </Link>
                       </div>
                     )}
-
-                    {/* Panel content */}
-                    {!selectedFile ? (
-                      <div className="flex-1 flex items-center justify-center">
-                        <p className="text-xs text-center" style={{ color: "var(--muted)" }}>Click a file to preview</p>
-                      </div>
-                    ) : loadingFile ? (
-                      <div className="flex-1 flex items-center justify-center">
-                        <Loader2 size={16} className="animate-spin" style={{ color: "var(--muted)" }} />
-                      </div>
-                    ) : activePanel === "preview" && selectedFile.endsWith(".html") ? (
-                      <iframe
-                        key={selectedFile}
-                        src={`${API}/output/${selectedId}/${selectedFile}`}
-                        className="flex-1 w-full border-0"
-                        title="App Preview"
-                        sandbox="allow-scripts allow-forms allow-modals"
-                      />
-                    ) : activePanel === "terminal" && terminalFile ? (
-                      <div className="flex-1 flex flex-col overflow-hidden">
-                        <div
-                          className="px-3 py-1.5 flex items-center justify-between shrink-0"
-                          style={{ background: "#0f172a", borderBottom: "1px solid #1e293b" }}
-                        >
-                          <span className="text-xs" style={{ color: "#64748b", fontFamily: "var(--font-mono)" }}>{terminalFile}</span>
-                          {running && (
-                            <button onClick={stopRun} className="p-0.5 rounded" style={{ color: "#64748b" }} title="Kill">
-                              <Square size={10} />
-                            </button>
-                          )}
-                        </div>
-                        <div
-                          ref={terminalRef}
-                          className="flex-1 overflow-y-auto p-3"
-                          style={{ background: "#0f172a", fontFamily: "var(--font-mono)", fontSize: 12 }}
-                        >
-                          {terminalLines.map((line, i) => (
-                            <div key={i} style={{ color: "#e2e8f0", lineHeight: "1.6", minHeight: "1em", whiteSpace: "pre-wrap" }}>
-                              {line || " "}
-                            </div>
-                          ))}
-                        </div>
-                        <div
-                          className="flex items-center border-t px-3 py-2 shrink-0"
-                          style={{ background: "#0f172a", borderColor: "#1e293b" }}
-                        >
-                          <span style={{ color: "#4ade80", fontFamily: "var(--font-mono)", fontSize: 12, marginRight: 6 }}>›</span>
-                          <input
-                            className="flex-1 bg-transparent outline-none"
-                            style={{ color: "#e2e8f0", fontFamily: "var(--font-mono)", fontSize: 12 }}
-                            placeholder={running ? "type and press Enter…" : "process exited"}
-                            value={terminalInput}
-                            disabled={!running}
-                            onChange={(e) => setTerminalInput(e.target.value)}
-                            onKeyDown={sendInput}
-                            autoFocus
-                          />
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex-1 overflow-auto p-3">
-                        <pre
-                          className="text-xs leading-relaxed whitespace-pre-wrap rounded-lg p-3"
-                          style={{
-                            background: "var(--card)",
-                            border: "1px solid var(--card-border)",
-                            color: "var(--foreground)",
-                            fontFamily: "var(--font-mono)",
-                          }}
-                        >
-                          {fileContent}
-                        </pre>
-                      </div>
-                    )}
-                  </div>
+                  </>
                 )}
               </div>
             </>
