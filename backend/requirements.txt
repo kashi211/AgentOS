@@ -1,31 +1,30 @@
-fastapi==0.115.5
-uvicorn[standard]==0.32.1
-websockets==13.1
-pydantic==2.10.1
-pydantic-settings==2.6.1
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+websockets>=13.0
+pydantic>=2.10.0
+pydantic-settings>=2.6.0
 
-# Anthropic
-anthropic==0.40.0
+# Anthropic — must be >=0.41 for langchain-anthropic compatibility
+anthropic>=0.41.0
 
 # LangGraph
-langgraph==0.2.55
-langchain-anthropic==0.3.1
+langgraph>=0.2.55
+langchain-anthropic>=0.3.1
 
 # Database
-asyncpg==0.30.0
-sqlalchemy[asyncio]==2.0.36
+asyncpg>=0.30.0
+sqlalchemy[asyncio]>=2.0.0
 
 # Redis
-redis[asyncio]==5.2.1
-upstash-redis==1.3.0
+upstash-redis>=1.3.0
 
 # Pinecone
-pinecone-client==5.0.1
+pinecone>=5.0.0
 
 # Cloudflare R2 (S3-compatible)
-boto3==1.35.74
+boto3>=1.35.0
 
 # Utils
-python-dotenv==1.0.1
-httpx==0.28.0
-tenacity==9.0.0
+python-dotenv>=1.0.0
+httpx>=0.28.0
+tenacity>=9.0.0

@@ -19,8 +19,8 @@ const nav = [
   { href: "/", label: "Home", icon: LayoutDashboard },
   { href: "/architecture", label: "Architecture", icon: GitBranch },
   { href: "/plan", label: "Dev Plan", icon: Map },
-  { href: "/agents", label: "Agents", icon: Bot, soon: true },
-  { href: "/tasks", label: "Tasks", icon: ListTodo, soon: true },
+  { href: "/agents", label: "Agents", icon: Bot },
+  { href: "/tasks", label: "Tasks", icon: ListTodo },
 ];
 
 function SidebarContent({ onClose }: { onClose?: () => void }) {
