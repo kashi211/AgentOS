@@ -17,19 +17,14 @@ Responsibilities:
 - Handle edge cases and errors properly
 - Output code in fenced code blocks with the file path as the label
 
-Output format:
-```path/to/file.ext
-<complete file contents>
-```
-
-If multiple files are needed, output each one separately.
-After the code, write a brief "## Summary" explaining what you built and any important decisions.
-
 Rules:
+- ALWAYS call write_file for every file you produce — never just show code in markdown
+- Call read_file first if you need to check existing code before writing
 - No TODO comments — finish what you start
 - No placeholder implementations
 - If you need a dependency, state it explicitly
-- Prefer simple solutions over clever ones"""
+- Prefer simple solutions over clever ones
+- After writing all files, write a brief "## Summary" listing the files written and key decisions"""
 
     @property
     def tools(self) -> list[dict]:
@@ -68,7 +63,9 @@ Rules:
 
     async def tool_write_file(self, path: str, content: str) -> str:
         import os
-        os.makedirs(os.path.dirname(path), exist_ok=True) if os.path.dirname(path) else None
-        with open(path, "w") as f:
+        # Scope all output under output/<task_id>/ to avoid filesystem scatter
+        safe_path = os.path.join("output", self.task_id, path.lstrip("/"))
+        os.makedirs(os.path.dirname(safe_path), exist_ok=True)
+        with open(safe_path, "w") as f:
             f.write(content)
-        return f"Written: {path} ({len(content)} chars)"
+        return f"Written: {safe_path} ({len(content)} chars)"
