@@ -90,9 +90,10 @@ async def get_task_file(task_id: str, file_path: str):
     return PlainTextResponse(content)
 
 
-async def _run_graph(task_id: str, goal: str):
+async def _run_graph(task_id: str, goal: str, output_task_id: str | None = None):
     initial_state = {
         "task_id": task_id,
+        "output_task_id": output_task_id or task_id,
         "goal": goal,
         "plan": [],
         "steps": [],

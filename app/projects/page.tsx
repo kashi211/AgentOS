@@ -58,7 +58,7 @@ const statusConfig: Record<TaskStatus, { label: string; color: string; icon: typ
   failed:    { label: "Failed",    color: "#dc2626", icon: XCircle },
 };
 
-export default function TasksPage() {
+export default function ProjectsPage() {
   const [goal, setGoal] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -158,9 +158,9 @@ export default function TasksPage() {
     <div className="h-full flex flex-col">
       {/* Header */}
       <div className="px-4 sm:px-8 lg:px-10 pt-8 pb-6 border-b" style={{ borderColor: "var(--card-border)" }}>
-        <h1 className="text-2xl font-bold mb-1" style={{ color: "var(--foreground)" }}>Tasks</h1>
+        <h1 className="text-2xl font-bold mb-1" style={{ color: "var(--foreground)" }}>Projects</h1>
         <p className="text-sm" style={{ color: "var(--muted)" }}>
-          Submit a goal and watch your agent team build it in real time.
+          Describe what you want built — your agent team will plan, build, and ship it.
         </p>
 
         <div className="flex gap-2 mt-4">
@@ -203,7 +203,7 @@ export default function TasksPage() {
         >
           <div className="p-3 flex items-center justify-between border-b" style={{ borderColor: "var(--card-border)" }}>
             <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--muted-light)" }}>
-              {tasks.length} task{tasks.length !== 1 ? "s" : ""}
+              {tasks.length} project{tasks.length !== 1 ? "s" : ""}
             </span>
             <button onClick={fetchTasks} className="p-1 rounded" style={{ color: "var(--muted)" }}>
               <RefreshCw size={13} />
@@ -212,7 +212,7 @@ export default function TasksPage() {
 
           {tasks.length === 0 ? (
             <div className="p-6 text-center">
-              <p className="text-sm" style={{ color: "var(--muted)" }}>No tasks yet. Submit a goal above.</p>
+              <p className="text-sm" style={{ color: "var(--muted)" }}>No projects yet. Describe something to build above.</p>
             </div>
           ) : (
             tasks.map((task) => {

@@ -20,6 +20,7 @@ MAX_REVISIONS = 2
 
 class AgentState(TypedDict):
     task_id: str
+    output_task_id: str       # where Developer writes files (same as task_id unless editing)
     goal: str
     plan: list[dict]          # CEO's subtask list
     steps: list[dict]         # Planner's detailed steps
@@ -83,7 +84,7 @@ async def planner_node(state: AgentState) -> dict:
 
 async def developer_node(state: AgentState) -> dict:
     memory = MemoryStore(state["task_id"])
-    agent = DeveloperAgent(state["task_id"], memory)
+    agent = DeveloperAgent(state["task_id"], memory, output_task_id=state.get("output_task_id"))
 
     steps = state["steps"]
     idx = state["current_step_idx"]

@@ -9,6 +9,7 @@ from db.connection import init_db, close_db
 from routes.tasks import router as tasks_router
 from routes.ws import router as ws_router
 from routes.run import router as run_router
+from routes.edit import router as edit_router
 
 
 @asynccontextmanager
@@ -32,6 +33,7 @@ app.add_middleware(
 app.include_router(tasks_router, prefix="/tasks", tags=["tasks"])
 app.include_router(ws_router, prefix="/ws", tags=["websocket"])
 app.include_router(run_router, prefix="/tasks", tags=["run"])
+app.include_router(edit_router, prefix="/tasks", tags=["edit"])
 
 app.mount("/output", StaticFiles(directory="output"), name="output")
 

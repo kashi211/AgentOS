@@ -5,6 +5,11 @@ class DeveloperAgent(BaseAgent):
     role = "developer"
     model = OPUS  # code quality demands the best model
     max_tokens = 8096
+    output_task_id: str  # where write_file actually writes — may differ from task_id on edits
+
+    def __init__(self, task_id: str, memory, output_task_id: str | None = None):
+        super().__init__(task_id, memory)
+        self.output_task_id = output_task_id or task_id
 
     @property
     def system_prompt(self) -> str:
@@ -63,16 +68,21 @@ class DeveloperAgent(BaseAgent):
         ]
 
     async def tool_read_file(self, path: str) -> str:
-        try:
-            with open(path) as f:
-                return f.read()
-        except FileNotFoundError:
-            return f"File not found: {path}"
+        import os
+        # Try path as-is first, then inside the project output dir
+        candidates = [path, os.path.join("output", self.output_task_id, path.lstrip("/"))]
+        for p in candidates:
+            try:
+                with open(p) as f:
+                    return f.read()
+            except FileNotFoundError:
+                continue
+        return f"File not found: {path}"
 
     async def tool_write_file(self, path: str, content: str) -> str:
         import os
-        # Scope all output under output/<task_id>/ to avoid filesystem scatter
-        safe_path = os.path.join("output", self.task_id, path.lstrip("/"))
+        # Write to output_task_id dir (may differ from task_id on edit runs)
+        safe_path = os.path.join("output", self.output_task_id, path.lstrip("/"))
         os.makedirs(os.path.dirname(safe_path), exist_ok=True)
         with open(safe_path, "w") as f:
             f.write(content)

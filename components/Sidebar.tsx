@@ -20,7 +20,7 @@ const nav = [
   { href: "/architecture", label: "Architecture", icon: GitBranch },
   { href: "/plan", label: "Dev Plan", icon: Map },
   { href: "/agents", label: "Agents", icon: Bot },
-  { href: "/tasks", label: "Tasks", icon: ListTodo },
+  { href: "/projects", label: "Projects", icon: ListTodo },
 ];
 
 function SidebarContent({ onClose }: { onClose?: () => void }) {
