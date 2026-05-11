@@ -570,6 +570,18 @@ export default function TasksPage() {
                           </button>
                         )}
                         <div className="flex-1" />
+                        {selectedFile.endsWith(".html") && selectedId && (
+                          <a
+                            href={`/preview/${selectedId}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex items-center gap-1 px-2 py-1 mx-1 rounded text-xs font-medium"
+                            style={{ background: "var(--accent-light)", color: "var(--accent)", border: "1px solid rgba(79,70,229,0.2)" }}
+                            title="Open full screen"
+                          >
+                            <Globe size={11} /> Full screen
+                          </a>
+                        )}
                         <a
                           href={`${API}/tasks/${selectedId}/files/${selectedFile}`}
                           download={selectedFile.split("/").pop()}
