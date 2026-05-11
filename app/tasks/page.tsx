@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Send, Loader2, CheckCircle2, XCircle, Clock, RefreshCw, FileCode, Download } from "lucide-react";
+import { useEffect, useRef, useState, useCallback } from "react";
+import { Send, Loader2, CheckCircle2, XCircle, Clock, RefreshCw, FileCode, Download, Play, Square, Terminal } from "lucide-react";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 const WS  = process.env.NEXT_PUBLIC_WS_URL  ?? "ws://localhost:8000";
@@ -74,8 +74,15 @@ export default function TasksPage() {
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState<string>("");
   const [loadingFile, setLoadingFile] = useState(false);
+  // Terminal / run state
+  const [terminalLines, setTerminalLines] = useState<string[]>([]);
+  const [terminalInput, setTerminalInput] = useState("");
+  const [running, setRunning] = useState(false);
+  const [terminalFile, setTerminalFile] = useState<string | null>(null);
   const feedRef = useRef<HTMLDivElement>(null);
+  const terminalRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const runWsRef = useRef<WebSocket | null>(null);
 
   // Fetch task list
   const fetchTasks = async () => {
@@ -114,13 +121,88 @@ export default function TasksPage() {
     }
   };
 
+  // Auto-scroll terminal
+  useEffect(() => {
+    terminalRef.current?.scrollTo({ top: terminalRef.current.scrollHeight });
+  }, [terminalLines]);
+
+  const stopRun = useCallback(() => {
+    runWsRef.current?.close();
+    runWsRef.current = null;
+    setRunning(false);
+  }, []);
+
+  const runFile = async (taskId: string, filePath: string) => {
+    stopRun();
+    setTerminalFile(filePath);
+    setTerminalLines([`$ python3 ${filePath}`, ""]);
+    setRunning(true);
+
+    let runId: string;
+    try {
+      const res = await fetch(`${API}/tasks/${taskId}/run`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ file: filePath }),
+      });
+      if (!res.ok) { setTerminalLines((p) => [...p, "[error starting process]"]); setRunning(false); return; }
+      ({ run_id: runId } = await res.json());
+    } catch {
+      setTerminalLines((p) => [...p, "[network error]"]);
+      setRunning(false);
+      return;
+    }
+
+    const ws = new WebSocket(`${WS}/ws/run/${runId}`);
+    runWsRef.current = ws;
+
+    ws.onmessage = (e) => {
+      const chunk: string = e.data;
+      setTerminalLines((prev) => {
+        const lines = [...prev];
+        const parts = chunk.split(/(\r\n|\n|\r)/);
+        for (const part of parts) {
+          if (part === "\r\n" || part === "\n" || part === "\r") {
+            lines.push("");
+          } else if (part) {
+            if (lines.length === 0) lines.push("");
+            lines[lines.length - 1] += part;
+          }
+        }
+        return lines;
+      });
+    };
+
+    ws.onclose = () => {
+      setRunning(false);
+      runWsRef.current = null;
+    };
+
+    ws.onerror = () => {
+      setTerminalLines((p) => [...p, "[connection error]"]);
+      setRunning(false);
+    };
+  };
+
+  const sendInput = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && runWsRef.current?.readyState === WebSocket.OPEN) {
+      const line = terminalInput + "\n";
+      runWsRef.current.send(line);
+      setTerminalLines((p) => [...p.slice(0, -1), (p[p.length - 1] ?? "") + terminalInput, ""]);
+      setTerminalInput("");
+    }
+  };
+
   // Select a task and subscribe to its WS feed
   const selectTask = async (taskId: string) => {
+    stopRun();
     setSelectedId(taskId);
     setLiveEvents([]);
     setFiles([]);
     setSelectedFile(null);
     setFileContent("");
+    setTerminalLines([]);
+    setTerminalFile(null);
     setLoadingMessages(true);
 
     // Close previous WS
@@ -390,78 +472,148 @@ export default function TasksPage() {
 
                 {/* Files panel — only shown when files exist */}
                 {files.length > 0 && (
-                  <div className="w-72 shrink-0 border-l flex flex-col overflow-hidden" style={{ borderColor: "var(--card-border)", background: "#fafafa" }}>
-                    <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: "var(--card-border)" }}>
+                  <div className="w-80 shrink-0 border-l flex flex-col overflow-hidden" style={{ borderColor: "var(--card-border)", background: "#fafafa" }}>
+                    {/* Panel header */}
+                    <div className="px-4 py-2.5 border-b flex items-center justify-between" style={{ borderColor: "var(--card-border)" }}>
                       <span className="text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5" style={{ color: "var(--muted-light)" }}>
                         <FileCode size={12} /> Output Files
                       </span>
-                      <button
-                        onClick={() => selectedId && fetchFiles(selectedId)}
-                        className="p-1 rounded"
-                        style={{ color: "var(--muted)" }}
-                      >
+                      <button onClick={() => selectedId && fetchFiles(selectedId)} className="p-1 rounded" style={{ color: "var(--muted)" }}>
                         <RefreshCw size={12} />
                       </button>
                     </div>
 
                     {/* File list */}
-                    <div className="overflow-y-auto border-b" style={{ maxHeight: "40%", borderColor: "var(--card-border)" }}>
-                      {files.map((f) => (
-                        <button
-                          key={f.path}
-                          onClick={() => selectedId && viewFile(selectedId, f.path)}
-                          className="w-full text-left px-4 py-2.5 border-b text-xs transition-all"
-                          style={{
-                            borderColor: "var(--card-border)",
-                            background: selectedFile === f.path ? "var(--accent-light)" : "transparent",
-                            color: selectedFile === f.path ? "var(--accent)" : "var(--foreground)",
-                            fontFamily: "var(--font-mono)",
-                            borderLeft: selectedFile === f.path ? "3px solid var(--accent)" : "3px solid transparent",
-                          }}
-                        >
-                          <div className="truncate">{f.path}</div>
-                          <div className="text-xs mt-0.5" style={{ color: "var(--muted-light)" }}>{(f.size / 1024).toFixed(1)} KB</div>
-                        </button>
-                      ))}
-                    </div>
-
-                    {/* File content viewer */}
-                    <div className="flex-1 overflow-auto p-3">
-                      {!selectedFile ? (
-                        <p className="text-xs text-center pt-6" style={{ color: "var(--muted)" }}>Select a file to preview</p>
-                      ) : loadingFile ? (
-                        <div className="flex justify-center pt-6">
-                          <Loader2 size={16} className="animate-spin" style={{ color: "var(--muted)" }} />
-                        </div>
-                      ) : (
-                        <>
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-xs font-mono truncate" style={{ color: "var(--muted)" }}>{selectedFile}</span>
-                            <a
-                              href={`${API}/tasks/${selectedId}/files/${selectedFile}`}
-                              download={selectedFile.split("/").pop()}
-                              className="p-1 rounded shrink-0"
-                              style={{ color: "var(--accent)" }}
-                              title="Download"
-                            >
-                              <Download size={12} />
-                            </a>
-                          </div>
-                          <pre
-                            className="text-xs leading-relaxed whitespace-pre-wrap rounded-lg p-3 overflow-auto"
+                    <div className="overflow-y-auto border-b" style={{ borderColor: "var(--card-border)" }}>
+                      {files.map((f) => {
+                        const isPy = f.path.endsWith(".py");
+                        const isActive = selectedFile === f.path;
+                        return (
+                          <div
+                            key={f.path}
+                            className="flex items-center border-b"
                             style={{
-                              background: "var(--card)",
-                              border: "1px solid var(--card-border)",
-                              color: "var(--foreground)",
-                              fontFamily: "var(--font-mono)",
-                              maxHeight: "400px",
+                              borderColor: "var(--card-border)",
+                              background: isActive ? "var(--accent-light)" : "transparent",
+                              borderLeft: isActive ? "3px solid var(--accent)" : "3px solid transparent",
                             }}
                           >
-                            {fileContent}
-                          </pre>
-                        </>
-                      )}
+                            <button
+                              className="flex-1 text-left px-3 py-2 text-xs"
+                              style={{ color: isActive ? "var(--accent)" : "var(--foreground)", fontFamily: "var(--font-mono)" }}
+                              onClick={() => selectedId && viewFile(selectedId, f.path)}
+                            >
+                              <div className="truncate">{f.path}</div>
+                              <div style={{ color: "var(--muted-light)" }}>{(f.size / 1024).toFixed(1)} KB</div>
+                            </button>
+                            {isPy && (
+                              <button
+                                onClick={() => selectedId && runFile(selectedId, f.path)}
+                                className="p-2 mr-2 rounded-md text-xs font-semibold flex items-center gap-1 shrink-0"
+                                style={{
+                                  background: running && terminalFile === f.path ? "rgba(220,38,38,0.08)" : "rgba(5,150,105,0.08)",
+                                  color: running && terminalFile === f.path ? "#dc2626" : "#059669",
+                                  border: `1px solid ${running && terminalFile === f.path ? "rgba(220,38,38,0.2)" : "rgba(5,150,105,0.2)"}`,
+                                }}
+                                title={running && terminalFile === f.path ? "Restart" : "Run"}
+                              >
+                                <Play size={11} />
+                                Run
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
+
+                    {/* Terminal or file preview */}
+                    {terminalFile ? (
+                      <div className="flex-1 flex flex-col overflow-hidden">
+                        {/* Terminal header */}
+                        <div
+                          className="px-3 py-2 flex items-center justify-between border-b shrink-0"
+                          style={{ background: "#0f172a", borderColor: "#1e293b" }}
+                        >
+                          <span className="text-xs flex items-center gap-1.5" style={{ color: "#94a3b8", fontFamily: "var(--font-mono)" }}>
+                            <Terminal size={11} />
+                            {terminalFile}
+                            {running && <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse inline-block" />}
+                          </span>
+                          {running && (
+                            <button onClick={stopRun} className="p-1 rounded" style={{ color: "#64748b" }} title="Kill process">
+                              <Square size={11} />
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Output */}
+                        <div
+                          ref={terminalRef}
+                          className="flex-1 overflow-y-auto p-3"
+                          style={{ background: "#0f172a", fontFamily: "var(--font-mono)", fontSize: 12 }}
+                        >
+                          {terminalLines.map((line, i) => (
+                            <div key={i} style={{ color: "#e2e8f0", lineHeight: "1.6", minHeight: "1em", whiteSpace: "pre-wrap" }}>
+                              {line || " "}
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Stdin input */}
+                        <div
+                          className="flex items-center border-t px-3 py-2 shrink-0"
+                          style={{ background: "#0f172a", borderColor: "#1e293b" }}
+                        >
+                          <span style={{ color: "#4ade80", fontFamily: "var(--font-mono)", fontSize: 12, marginRight: 6 }}>›</span>
+                          <input
+                            className="flex-1 bg-transparent outline-none text-xs"
+                            style={{ color: "#e2e8f0", fontFamily: "var(--font-mono)", fontSize: 12 }}
+                            placeholder={running ? "type input and press Enter…" : "process exited"}
+                            value={terminalInput}
+                            disabled={!running}
+                            onChange={(e) => setTerminalInput(e.target.value)}
+                            onKeyDown={sendInput}
+                            autoFocus
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex-1 overflow-auto p-3">
+                        {!selectedFile ? (
+                          <p className="text-xs text-center pt-6" style={{ color: "var(--muted)" }}>Click a file to preview or Run to execute</p>
+                        ) : loadingFile ? (
+                          <div className="flex justify-center pt-6">
+                            <Loader2 size={16} className="animate-spin" style={{ color: "var(--muted)" }} />
+                          </div>
+                        ) : (
+                          <>
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-xs font-mono truncate" style={{ color: "var(--muted)" }}>{selectedFile}</span>
+                              <a
+                                href={`${API}/tasks/${selectedId}/files/${selectedFile}`}
+                                download={selectedFile.split("/").pop()}
+                                className="p-1 rounded shrink-0"
+                                style={{ color: "var(--accent)" }}
+                                title="Download"
+                              >
+                                <Download size={12} />
+                              </a>
+                            </div>
+                            <pre
+                              className="text-xs leading-relaxed whitespace-pre-wrap rounded-lg p-3"
+                              style={{
+                                background: "var(--card)",
+                                border: "1px solid var(--card-border)",
+                                color: "var(--foreground)",
+                                fontFamily: "var(--font-mono)",
+                              }}
+                            >
+                              {fileContent}
+                            </pre>
+                          </>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
