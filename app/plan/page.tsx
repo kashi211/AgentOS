@@ -323,7 +323,7 @@ export default function PlanPage() {
               { label: "API-first", body: "Backend contracts defined before UI is built. OpenAPI spec maintained throughout." },
               { label: "Type-safe", body: "TypeScript on the frontend, Pydantic v2 on the backend. No implicit any." },
               { label: "Fail loudly", body: "Agent errors are surfaced in the UI, not silently swallowed. Every failure has a visible trace." },
-              { label: "Provider-agnostic", body: "Model routing is a config change. Claude Opus 4.7, Sonnet 4.6, and o3 are hot-swappable per agent." },
+              { label: "Provider-agnostic", body: "Model routing is a config change. Claude Opus 4.7 and Sonnet 4.6 are hot-swappable per agent." },
             ].map(({ label, body }) => (
               <div key={label}>
                 <div className="text-xs font-bold mb-1" style={{ color: "var(--accent)" }}>{label}</div>

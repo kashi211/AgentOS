@@ -29,9 +29,9 @@ const techStack = [
     icon: Cpu,
     items: [
       { name: "Claude Opus 4.7", desc: "Primary reasoning & code gen" },
-      { name: "Claude Sonnet 4.6 / o3", desc: "Fast tasks & fallback" },
+      { name: "Claude Sonnet 4.6", desc: "Fast tasks & fallback" },
       { name: "Tool Use / Function Calling", desc: "Structured agent actions" },
-      { name: "Anthropic + OpenAI SDK", desc: "Unified provider interface" },
+      { name: "Anthropic SDK", desc: "Unified provider interface" },
     ],
   },
   {
@@ -61,7 +61,7 @@ const dataFlows = [
   { from: "FastAPI", to: "LangGraph", label: "route task to graph", protocol: "Internal" },
   { from: "LangGraph", to: "CEO Agent", label: "assign goal", protocol: "Agent call" },
   { from: "CEO Agent", to: "Sub-agents", label: "delegate subtasks", protocol: "Agent call" },
-  { from: "Sub-agents", to: "Claude Opus 4.7 / o3", label: "completion request", protocol: "HTTPS" },
+  { from: "Sub-agents", to: "Claude Opus 4.7", label: "completion request", protocol: "HTTPS" },
   { from: "Sub-agents", to: "PostgreSQL + Redis", label: "write memory", protocol: "SQL / Cache" },
   { from: "LangGraph", to: "WebSocket", label: "stream events", protocol: "WS" },
   { from: "WebSocket", to: "Next.js UI", label: "live agent feed", protocol: "WS" },
@@ -338,9 +338,9 @@ export default function ArchitecturePage() {
                 "Agent execution can span minutes with dozens of sub-events (thinking, tool call, output). SSE would work for one-way streaming but WebSockets let the UI send interrupts and feedback mid-run.",
             },
             {
-              title: "Why multi-provider AI (Claude Opus 4.7 + o3)?",
+              title: "Why two Claude models instead of one?",
               body:
-                "Claude Opus 4.7 leads on code reasoning and long-context tasks; Claude Sonnet 4.6 handles faster, lighter sub-tasks at lower cost; OpenAI o3 provides cross-provider redundancy. A provider abstraction layer makes swapping models a config change.",
+                "Claude Opus 4.7 handles deep reasoning, long-context tasks, and code generation. Claude Sonnet 4.6 runs faster at lower cost for simpler sub-tasks like summarisation and formatting. Routing between them is a config change — no vendor lock-in.",
             },
           ].map(({ title, body }) => (
             <div key={title} className="card p-5">

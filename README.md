@@ -34,7 +34,7 @@ FastAPI Backend (Python 3.12)
 │  CEO → Planner → Developer → QA → ...  │
 └─────────────────────────────────────────┘
     │
-    ├── Claude Opus 4.7 / o3  (AI)
+    ├── Claude Opus 4.7 / Sonnet 4.6  (AI)
     ├── PostgreSQL on Neon           (persistence)
     ├── Redis on Upstash             (short-term memory)
     ├── Pinecone                     (vector memory)
@@ -52,7 +52,7 @@ Full architecture breakdown at [/architecture](https://agentos.vercel.app/archit
 | Frontend | Next.js 15 (App Router), Tailwind CSS v4, Vercel AI SDK |
 | Backend | FastAPI, Python 3.12, Uvicorn |
 | Orchestration | LangGraph |
-| AI | Claude Opus 4.7 (primary), Claude Sonnet 4.6 (fast), o3 (fallback) |
+| AI | Claude Opus 4.7 (reasoning), Claude Sonnet 4.6 (fast tasks) |
 | Database | PostgreSQL via Neon |
 | Cache / Memory | Redis via Upstash |
 | Vector DB | Pinecone |
@@ -114,7 +114,7 @@ Full roadmap at [/plan](https://agentos.vercel.app/plan).
 
 **LangGraph over a custom orchestrator** — models agent workflows as directed graphs with typed state, making complex branching explicit and checkpointable for durable execution.
 
-**Claude Opus 4.7 + Sonnet 4.6 + o3** — Opus 4.7 for deep reasoning and code; Sonnet 4.6 for fast, lighter sub-tasks; o3 for cross-provider redundancy. Swapping models is a config change.
+**Claude Opus 4.7 + Sonnet 4.6** — Opus 4.7 for deep reasoning and code; Sonnet 4.6 for fast, lighter sub-tasks. Swapping between them is a config change.
 
 **PostgreSQL (Neon) over SQLite** — serverless Postgres with branching, zero cold-start, and native pgvector support for future embedding queries.
 
