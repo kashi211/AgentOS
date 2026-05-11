@@ -59,7 +59,8 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
         <p className="text-xs font-semibold px-3 py-2 uppercase tracking-widest" style={{ color: "var(--muted-light)" }}>
           Navigation
         </p>
-        {nav.map(({ href, label, icon: Icon, soon }) => {
+        {nav.map(({ href, label, icon: Icon }) => {
+          const soon = false;
           const active = pathname === href;
           return (
             <Link

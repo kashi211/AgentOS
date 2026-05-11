@@ -1,8 +1,9 @@
 import uuid
 import asyncio
+import os
 
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 
 from db.connection import get_pool
 from models.task import TaskCreate, TaskOut
@@ -58,6 +59,35 @@ async def list_tasks():
     async with pool.acquire() as conn:
         rows = await conn.fetch("SELECT id, goal, status, created_at FROM tasks ORDER BY created_at DESC LIMIT 50")
     return [{"id": str(r["id"]), "goal": r["goal"], "status": r["status"], "created_at": r["created_at"].isoformat()} for r in rows]
+
+
+@router.get("/{task_id}/files")
+async def list_task_files(task_id: str):
+    output_dir = os.path.join("output", task_id)
+    if not os.path.isdir(output_dir):
+        return []
+    files = []
+    for root, _, filenames in os.walk(output_dir):
+        for name in filenames:
+            full = os.path.join(root, name)
+            rel = os.path.relpath(full, output_dir)
+            size = os.path.getsize(full)
+            files.append({"path": rel, "size": size})
+    return sorted(files, key=lambda f: f["path"])
+
+
+@router.get("/{task_id}/files/{file_path:path}")
+async def get_task_file(task_id: str, file_path: str):
+    output_dir = os.path.join("output", task_id)
+    safe = os.path.realpath(os.path.join(output_dir, file_path))
+    root = os.path.realpath(output_dir)
+    if not safe.startswith(root + os.sep) and safe != root:
+        raise HTTPException(400, "Invalid path")
+    if not os.path.isfile(safe):
+        raise HTTPException(404, "File not found")
+    with open(safe) as f:
+        content = f.read()
+    return PlainTextResponse(content)
 
 
 async def _run_graph(task_id: str, goal: str):

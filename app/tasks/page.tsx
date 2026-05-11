@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Send, Loader2, CheckCircle2, XCircle, Clock, RefreshCw } from "lucide-react";
+import { Send, Loader2, CheckCircle2, XCircle, Clock, RefreshCw, FileCode, Download } from "lucide-react";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 const WS  = process.env.NEXT_PUBLIC_WS_URL  ?? "ws://localhost:8000";
@@ -57,6 +57,11 @@ const statusConfig: Record<TaskStatus, { label: string; color: string; icon: typ
   failed:    { label: "Failed",    color: "#dc2626", icon: XCircle },
 };
 
+interface TaskFile {
+  path: string;
+  size: number;
+}
+
 export default function TasksPage() {
   const [goal, setGoal] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -65,6 +70,10 @@ export default function TasksPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [liveEvents, setLiveEvents] = useState<LiveEvent[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
+  const [files, setFiles] = useState<TaskFile[]>([]);
+  const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const [fileContent, setFileContent] = useState<string>("");
+  const [loadingFile, setLoadingFile] = useState(false);
   const feedRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
 
@@ -87,10 +96,31 @@ export default function TasksPage() {
     feedRef.current?.scrollTo({ top: feedRef.current.scrollHeight, behavior: "smooth" });
   }, [liveEvents, messages]);
 
+  const fetchFiles = async (taskId: string) => {
+    try {
+      const res = await fetch(`${API}/tasks/${taskId}/files`);
+      if (res.ok) setFiles(await res.json());
+    } catch {}
+  };
+
+  const viewFile = async (taskId: string, filePath: string) => {
+    setSelectedFile(filePath);
+    setLoadingFile(true);
+    try {
+      const res = await fetch(`${API}/tasks/${taskId}/files/${filePath}`);
+      if (res.ok) setFileContent(await res.text());
+    } finally {
+      setLoadingFile(false);
+    }
+  };
+
   // Select a task and subscribe to its WS feed
   const selectTask = async (taskId: string) => {
     setSelectedId(taskId);
     setLiveEvents([]);
+    setFiles([]);
+    setSelectedFile(null);
+    setFileContent("");
     setLoadingMessages(true);
 
     // Close previous WS
@@ -107,16 +137,19 @@ export default function TasksPage() {
       setLoadingMessages(false);
     }
 
+    // Load files
+    fetchFiles(taskId);
+
     // Open WebSocket for live events
     const ws = new WebSocket(`${WS}/ws/${taskId}`);
     ws.onmessage = (e) => {
       const event: LiveEvent = JSON.parse(e.data);
       setLiveEvents((prev) => [...prev, event]);
-      // Refresh task status
+      // Refresh task status and files when done
       setTasks((prev) =>
         prev.map((t) => {
           if (t.id !== taskId) return t;
-          if (event.type === "done") return { ...t, status: "done" };
+          if (event.type === "done") { fetchFiles(taskId); return { ...t, status: "done" }; }
           if (event.type === "error") return { ...t, status: "failed" };
           if (event.agent === "ceo") return { ...t, status: "planning" };
           if (event.agent === "developer") return { ...t, status: "executing" };
@@ -283,68 +316,153 @@ export default function TasksPage() {
                         style={{ color: cfg.color }}
                       />
                       <span className="text-xs font-semibold" style={{ color: cfg.color }}>{cfg.label}</span>
-                      <span className="text-sm font-medium truncate" style={{ color: "var(--foreground)" }}>
+                      <span className="text-sm font-medium truncate flex-1" style={{ color: "var(--foreground)" }}>
                         {selectedTask.goal}
                       </span>
+                      {files.length > 0 && (
+                        <span className="text-xs px-2 py-0.5 rounded-full font-medium shrink-0" style={{ background: "rgba(2,132,199,0.08)", color: "#0284c7", border: "1px solid rgba(2,132,199,0.15)" }}>
+                          {files.length} file{files.length !== 1 ? "s" : ""}
+                        </span>
+                      )}
                     </>
                   );
                 })()}
               </div>
 
-              {/* Events */}
-              <div ref={feedRef} className="flex-1 overflow-y-auto p-6 space-y-3">
-                {loadingMessages ? (
-                  <div className="flex justify-center pt-8">
-                    <Loader2 size={20} className="animate-spin" style={{ color: "var(--muted)" }} />
-                  </div>
-                ) : allFeedItems.length === 0 ? (
-                  <div className="text-center pt-8">
-                    <Loader2 size={20} className="animate-spin mx-auto mb-2" style={{ color: "var(--accent)" }} />
-                    <p className="text-sm" style={{ color: "var(--muted)" }}>Agents are starting up…</p>
-                  </div>
-                ) : (
-                  allFeedItems.map((item) => {
-                    const color = agentColor[item.agent_role] ?? "#64748b";
-                    const icon = agentIcon[item.agent_role] ?? "⚙️";
-                    return (
-                      <div key={item.id} className="flex gap-3">
-                        <div
-                          className="w-7 h-7 rounded-lg flex items-center justify-center text-sm shrink-0 mt-0.5"
-                          style={{ background: `${color}10`, border: `1px solid ${color}20` }}
-                        >
-                          {icon}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-xs font-bold capitalize" style={{ color }}>
-                              {item.agent_role}
-                            </span>
-                            <span
-                              className="text-xs px-1.5 py-0.5 rounded"
-                              style={{ background: "var(--card-border)", color: "var(--muted)", fontSize: 10 }}
-                            >
-                              {item.type}
-                            </span>
-                            {"isLive" in item && item.isLive && (
-                              <span className="text-xs" style={{ color: "var(--accent)", fontSize: 10 }}>● live</span>
-                            )}
-                          </div>
+              {/* Events + Files side by side */}
+              <div className="flex flex-1 overflow-hidden">
+                {/* Events feed */}
+                <div ref={feedRef} className="flex-1 overflow-y-auto p-6 space-y-3">
+                  {loadingMessages ? (
+                    <div className="flex justify-center pt-8">
+                      <Loader2 size={20} className="animate-spin" style={{ color: "var(--muted)" }} />
+                    </div>
+                  ) : allFeedItems.length === 0 ? (
+                    <div className="text-center pt-8">
+                      <Loader2 size={20} className="animate-spin mx-auto mb-2" style={{ color: "var(--accent)" }} />
+                      <p className="text-sm" style={{ color: "var(--muted)" }}>Agents are starting up…</p>
+                    </div>
+                  ) : (
+                    allFeedItems.map((item) => {
+                      const color = agentColor[item.agent_role] ?? "#64748b";
+                      const icon = agentIcon[item.agent_role] ?? "⚙️";
+                      return (
+                        <div key={item.id} className="flex gap-3">
                           <div
-                            className="text-sm leading-relaxed whitespace-pre-wrap rounded-lg px-3 py-2"
+                            className="w-7 h-7 rounded-lg flex items-center justify-center text-sm shrink-0 mt-0.5"
+                            style={{ background: `${color}10`, border: `1px solid ${color}20` }}
+                          >
+                            {icon}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-xs font-bold capitalize" style={{ color }}>
+                                {item.agent_role}
+                              </span>
+                              <span
+                                className="text-xs px-1.5 py-0.5 rounded"
+                                style={{ background: "var(--card-border)", color: "var(--muted)", fontSize: 10 }}
+                              >
+                                {item.type}
+                              </span>
+                              {"isLive" in item && item.isLive && (
+                                <span className="text-xs" style={{ color: "var(--accent)", fontSize: 10 }}>● live</span>
+                              )}
+                            </div>
+                            <div
+                              className="text-sm leading-relaxed whitespace-pre-wrap rounded-lg px-3 py-2"
+                              style={{
+                                background: "var(--card)",
+                                border: "1px solid var(--card-border)",
+                                color: "var(--foreground)",
+                                fontFamily: item.type === "tool_call" ? "var(--font-mono)" : "inherit",
+                                fontSize: item.type === "tool_call" ? 12 : 13,
+                              }}
+                            >
+                              {item.content}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                {/* Files panel — only shown when files exist */}
+                {files.length > 0 && (
+                  <div className="w-72 shrink-0 border-l flex flex-col overflow-hidden" style={{ borderColor: "var(--card-border)", background: "#fafafa" }}>
+                    <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: "var(--card-border)" }}>
+                      <span className="text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5" style={{ color: "var(--muted-light)" }}>
+                        <FileCode size={12} /> Output Files
+                      </span>
+                      <button
+                        onClick={() => selectedId && fetchFiles(selectedId)}
+                        className="p-1 rounded"
+                        style={{ color: "var(--muted)" }}
+                      >
+                        <RefreshCw size={12} />
+                      </button>
+                    </div>
+
+                    {/* File list */}
+                    <div className="overflow-y-auto border-b" style={{ maxHeight: "40%", borderColor: "var(--card-border)" }}>
+                      {files.map((f) => (
+                        <button
+                          key={f.path}
+                          onClick={() => selectedId && viewFile(selectedId, f.path)}
+                          className="w-full text-left px-4 py-2.5 border-b text-xs transition-all"
+                          style={{
+                            borderColor: "var(--card-border)",
+                            background: selectedFile === f.path ? "var(--accent-light)" : "transparent",
+                            color: selectedFile === f.path ? "var(--accent)" : "var(--foreground)",
+                            fontFamily: "var(--font-mono)",
+                            borderLeft: selectedFile === f.path ? "3px solid var(--accent)" : "3px solid transparent",
+                          }}
+                        >
+                          <div className="truncate">{f.path}</div>
+                          <div className="text-xs mt-0.5" style={{ color: "var(--muted-light)" }}>{(f.size / 1024).toFixed(1)} KB</div>
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* File content viewer */}
+                    <div className="flex-1 overflow-auto p-3">
+                      {!selectedFile ? (
+                        <p className="text-xs text-center pt-6" style={{ color: "var(--muted)" }}>Select a file to preview</p>
+                      ) : loadingFile ? (
+                        <div className="flex justify-center pt-6">
+                          <Loader2 size={16} className="animate-spin" style={{ color: "var(--muted)" }} />
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-mono truncate" style={{ color: "var(--muted)" }}>{selectedFile}</span>
+                            <a
+                              href={`${API}/tasks/${selectedId}/files/${selectedFile}`}
+                              download={selectedFile.split("/").pop()}
+                              className="p-1 rounded shrink-0"
+                              style={{ color: "var(--accent)" }}
+                              title="Download"
+                            >
+                              <Download size={12} />
+                            </a>
+                          </div>
+                          <pre
+                            className="text-xs leading-relaxed whitespace-pre-wrap rounded-lg p-3 overflow-auto"
                             style={{
                               background: "var(--card)",
                               border: "1px solid var(--card-border)",
                               color: "var(--foreground)",
-                              fontFamily: item.type === "tool_call" ? "var(--font-mono)" : "inherit",
-                              fontSize: item.type === "tool_call" ? 12 : 13,
+                              fontFamily: "var(--font-mono)",
+                              maxHeight: "400px",
                             }}
                           >
-                            {item.content}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })
+                            {fileContent}
+                          </pre>
+                        </>
+                      )}
+                    </div>
+                  </div>
                 )}
               </div>
             </>
