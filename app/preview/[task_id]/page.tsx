@@ -253,7 +253,7 @@ export default function ProjectPage() {
               <div style={{ textAlign: "center", paddingTop: 40 }}>
                 <p style={{ fontSize: 24, marginBottom: 8 }}>✨</p>
                 <p style={{ color: "#334155", fontSize: 13 }}>Ask the team to make changes</p>
-                <p style={{ color: "#1e293b", fontSize: 12, marginTop: 4 }}>e.g. "add a dark mode toggle" or "make the buttons bigger"</p>
+                <p style={{ color: "#1e293b", fontSize: 12, marginTop: 4 }}>e.g. &ldquo;add a dark mode toggle&rdquo; or &ldquo;make the buttons bigger&rdquo;</p>
               </div>
             )}
             {threads.map((thread) => (

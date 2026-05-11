@@ -1,4 +1,4 @@
-import { Brain, Code2, FileText, ShieldCheck, Zap } from "lucide-react";
+import { Zap } from "lucide-react";
 
 const agents = [
   {
@@ -89,13 +89,6 @@ const agents = [
   },
 ];
 
-const featureIcons = {
-  Brain,
-  Code2,
-  FileText,
-  ShieldCheck,
-  Zap,
-};
 
 export default function AgentsPage() {
   return (
