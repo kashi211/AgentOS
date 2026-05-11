@@ -1,7 +1,9 @@
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from db.connection import init_db, close_db
 from routes.tasks import router as tasks_router
@@ -11,6 +13,7 @@ from routes.run import router as run_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    os.makedirs("output", exist_ok=True)
     await init_db()
     yield
     await close_db()
@@ -29,6 +32,8 @@ app.add_middleware(
 app.include_router(tasks_router, prefix="/tasks", tags=["tasks"])
 app.include_router(ws_router, prefix="/ws", tags=["websocket"])
 app.include_router(run_router, prefix="/tasks", tags=["run"])
+
+app.mount("/output", StaticFiles(directory="output"), name="output")
 
 
 @app.get("/health")

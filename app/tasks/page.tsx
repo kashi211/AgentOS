@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Send, Loader2, CheckCircle2, XCircle, Clock, RefreshCw, FileCode, Download, Play, Square, Terminal } from "lucide-react";
+import { Send, Loader2, CheckCircle2, XCircle, Clock, RefreshCw, FileCode, Download, Play, Square, Terminal, Globe, Code } from "lucide-react";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 const WS  = process.env.NEXT_PUBLIC_WS_URL  ?? "ws://localhost:8000";
@@ -79,6 +79,8 @@ export default function TasksPage() {
   const [terminalInput, setTerminalInput] = useState("");
   const [running, setRunning] = useState(false);
   const [terminalFile, setTerminalFile] = useState<string | null>(null);
+  // Preview panel tab: "preview" | "code" | "terminal"
+  const [activePanel, setActivePanel] = useState<"preview" | "code" | "terminal">("preview");
   const feedRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -112,6 +114,7 @@ export default function TasksPage() {
 
   const viewFile = async (taskId: string, filePath: string) => {
     setSelectedFile(filePath);
+    setActivePanel(filePath.endsWith(".html") ? "preview" : "code");
     setLoadingFile(true);
     try {
       const res = await fetch(`${API}/tasks/${taskId}/files/${filePath}`);
@@ -137,6 +140,7 @@ export default function TasksPage() {
     setTerminalFile(filePath);
     setTerminalLines([`$ python3 ${filePath}`, ""]);
     setRunning(true);
+    setActivePanel("terminal");
 
     let runId: string;
     try {
@@ -153,7 +157,7 @@ export default function TasksPage() {
       return;
     }
 
-    const ws = new WebSocket(`${WS}/ws/run/${runId}`);
+    const ws = new WebSocket(`${WS}/tasks/run/${runId}`);
     runWsRef.current = ws;
 
     ws.onmessage = (e) => {
@@ -203,6 +207,7 @@ export default function TasksPage() {
     setFileContent("");
     setTerminalLines([]);
     setTerminalFile(null);
+    setActivePanel("preview");
     setLoadingMessages(true);
 
     // Close previous WS
@@ -526,27 +531,87 @@ export default function TasksPage() {
                       })}
                     </div>
 
-                    {/* Terminal or file preview */}
-                    {terminalFile ? (
-                      <div className="flex-1 flex flex-col overflow-hidden">
-                        {/* Terminal header */}
-                        <div
-                          className="px-3 py-2 flex items-center justify-between border-b shrink-0"
-                          style={{ background: "#0f172a", borderColor: "#1e293b" }}
+                    {/* Tabs + content area */}
+                    {selectedFile && (
+                      <div className="flex border-b shrink-0" style={{ borderColor: "var(--card-border)" }}>
+                        {selectedFile.endsWith(".html") && (
+                          <button
+                            onClick={() => setActivePanel("preview")}
+                            className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 transition-colors"
+                            style={{
+                              borderBottomColor: activePanel === "preview" ? "var(--accent)" : "transparent",
+                              color: activePanel === "preview" ? "var(--accent)" : "var(--muted)",
+                            }}
+                          >
+                            <Globe size={11} /> Preview
+                          </button>
+                        )}
+                        <button
+                          onClick={() => setActivePanel("code")}
+                          className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 transition-colors"
+                          style={{
+                            borderBottomColor: activePanel === "code" ? "var(--accent)" : "transparent",
+                            color: activePanel === "code" ? "var(--accent)" : "var(--muted)",
+                          }}
                         >
-                          <span className="text-xs flex items-center gap-1.5" style={{ color: "#94a3b8", fontFamily: "var(--font-mono)" }}>
-                            <Terminal size={11} />
-                            {terminalFile}
-                            {running && <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse inline-block" />}
-                          </span>
+                          <Code size={11} /> Code
+                        </button>
+                        {terminalFile && (
+                          <button
+                            onClick={() => setActivePanel("terminal")}
+                            className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 transition-colors"
+                            style={{
+                              borderBottomColor: activePanel === "terminal" ? "var(--accent)" : "transparent",
+                              color: activePanel === "terminal" ? "var(--accent)" : "var(--muted)",
+                            }}
+                          >
+                            <Terminal size={11} /> Terminal
+                            {running && <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />}
+                          </button>
+                        )}
+                        <div className="flex-1" />
+                        <a
+                          href={`${API}/tasks/${selectedId}/files/${selectedFile}`}
+                          download={selectedFile.split("/").pop()}
+                          className="flex items-center px-3"
+                          style={{ color: "var(--muted)" }}
+                          title="Download"
+                        >
+                          <Download size={12} />
+                        </a>
+                      </div>
+                    )}
+
+                    {/* Panel content */}
+                    {!selectedFile ? (
+                      <div className="flex-1 flex items-center justify-center">
+                        <p className="text-xs text-center" style={{ color: "var(--muted)" }}>Click a file to preview</p>
+                      </div>
+                    ) : loadingFile ? (
+                      <div className="flex-1 flex items-center justify-center">
+                        <Loader2 size={16} className="animate-spin" style={{ color: "var(--muted)" }} />
+                      </div>
+                    ) : activePanel === "preview" && selectedFile.endsWith(".html") ? (
+                      <iframe
+                        key={selectedFile}
+                        src={`${API}/output/${selectedId}/${selectedFile}`}
+                        className="flex-1 w-full border-0"
+                        title="App Preview"
+                        sandbox="allow-scripts allow-forms allow-modals"
+                      />
+                    ) : activePanel === "terminal" && terminalFile ? (
+                      <div className="flex-1 flex flex-col overflow-hidden">
+                        <div
+                          className="px-3 py-1.5 flex items-center justify-between shrink-0"
+                          style={{ background: "#0f172a", borderBottom: "1px solid #1e293b" }}
+                        >
+                          <span className="text-xs" style={{ color: "#64748b", fontFamily: "var(--font-mono)" }}>{terminalFile}</span>
                           {running && (
-                            <button onClick={stopRun} className="p-1 rounded" style={{ color: "#64748b" }} title="Kill process">
-                              <Square size={11} />
+                            <button onClick={stopRun} className="p-0.5 rounded" style={{ color: "#64748b" }} title="Kill">
+                              <Square size={10} />
                             </button>
                           )}
                         </div>
-
-                        {/* Output */}
                         <div
                           ref={terminalRef}
                           className="flex-1 overflow-y-auto p-3"
@@ -558,17 +623,15 @@ export default function TasksPage() {
                             </div>
                           ))}
                         </div>
-
-                        {/* Stdin input */}
                         <div
                           className="flex items-center border-t px-3 py-2 shrink-0"
                           style={{ background: "#0f172a", borderColor: "#1e293b" }}
                         >
                           <span style={{ color: "#4ade80", fontFamily: "var(--font-mono)", fontSize: 12, marginRight: 6 }}>›</span>
                           <input
-                            className="flex-1 bg-transparent outline-none text-xs"
+                            className="flex-1 bg-transparent outline-none"
                             style={{ color: "#e2e8f0", fontFamily: "var(--font-mono)", fontSize: 12 }}
-                            placeholder={running ? "type input and press Enter…" : "process exited"}
+                            placeholder={running ? "type and press Enter…" : "process exited"}
                             value={terminalInput}
                             disabled={!running}
                             onChange={(e) => setTerminalInput(e.target.value)}
@@ -579,39 +642,17 @@ export default function TasksPage() {
                       </div>
                     ) : (
                       <div className="flex-1 overflow-auto p-3">
-                        {!selectedFile ? (
-                          <p className="text-xs text-center pt-6" style={{ color: "var(--muted)" }}>Click a file to preview or Run to execute</p>
-                        ) : loadingFile ? (
-                          <div className="flex justify-center pt-6">
-                            <Loader2 size={16} className="animate-spin" style={{ color: "var(--muted)" }} />
-                          </div>
-                        ) : (
-                          <>
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="text-xs font-mono truncate" style={{ color: "var(--muted)" }}>{selectedFile}</span>
-                              <a
-                                href={`${API}/tasks/${selectedId}/files/${selectedFile}`}
-                                download={selectedFile.split("/").pop()}
-                                className="p-1 rounded shrink-0"
-                                style={{ color: "var(--accent)" }}
-                                title="Download"
-                              >
-                                <Download size={12} />
-                              </a>
-                            </div>
-                            <pre
-                              className="text-xs leading-relaxed whitespace-pre-wrap rounded-lg p-3"
-                              style={{
-                                background: "var(--card)",
-                                border: "1px solid var(--card-border)",
-                                color: "var(--foreground)",
-                                fontFamily: "var(--font-mono)",
-                              }}
-                            >
-                              {fileContent}
-                            </pre>
-                          </>
-                        )}
+                        <pre
+                          className="text-xs leading-relaxed whitespace-pre-wrap rounded-lg p-3"
+                          style={{
+                            background: "var(--card)",
+                            border: "1px solid var(--card-border)",
+                            color: "var(--foreground)",
+                            fontFamily: "var(--font-mono)",
+                          }}
+                        >
+                          {fileContent}
+                        </pre>
                       </div>
                     )}
                   </div>
