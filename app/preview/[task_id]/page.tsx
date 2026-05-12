@@ -164,6 +164,8 @@ export default function ProjectPage() {
 
   const hasDemo = selectedFile?.endsWith(".html") ?? false;
   const demoSrc = `${API}/output/${task_id}/${selectedFile}`;
+  // srcdoc embeds HTML directly — avoids all cross-origin iframe restrictions
+  const iframeSrcdoc = hasDemo && fileContent ? fileContent : undefined;
 
   return (
     <div style={{ height: "100dvh", display: "flex", flexDirection: "column", background: "#0f172a", overflow: "hidden" }}>
@@ -177,7 +179,7 @@ export default function ProjectPage() {
           <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#22c55e", flexShrink: 0 }} />
           <span style={{ color: "#94a3b8", fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{goal || task_id}</span>
         </div>
-        <button onClick={() => { setIframeKey((k) => k + 1); fetchFiles(); }} style={{ color: "#94a3b8", display: "flex", padding: 6, borderRadius: 6, border: "1px solid #1e293b", cursor: "pointer", background: "transparent" }} title="Reload">
+        <button onClick={() => { if (selectedFile) selectFile(selectedFile); setIframeKey((k) => k + 1); fetchFiles(); }} style={{ color: "#94a3b8", display: "flex", padding: 6, borderRadius: 6, border: "1px solid #1e293b", cursor: "pointer", background: "transparent" }} title="Reload">
           <RefreshCw size={14} />
         </button>
         {hasDemo && (
@@ -231,7 +233,13 @@ export default function ProjectPage() {
               <Loader2 size={20} style={{ color: "#4f46e5", animation: "spin 0.8s linear infinite" }} />
             </div>
           ) : mode === "demo" && hasDemo ? (
-            <iframe key={iframeKey} src={demoSrc} style={{ flex: 1, width: "100%", border: "none", background: "#fff" }} sandbox="allow-scripts allow-forms allow-modals allow-popups allow-same-origin" title="App Demo" />
+            <iframe
+              key={`${iframeKey}-${selectedFile}`}
+              srcDoc={iframeSrcdoc}
+              style={{ flex: 1, width: "100%", border: "none", background: "#fff" }}
+              sandbox="allow-scripts allow-forms allow-modals allow-popups"
+              title="App Demo"
+            />
           ) : (
             <div style={{ flex: 1, overflowY: "auto", padding: 24 }}>
               <pre style={{ margin: 0, color: "#e2e8f0", fontSize: 13, lineHeight: 1.7, fontFamily: "monospace", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{fileContent}</pre>
