@@ -4,13 +4,67 @@ import { useEffect, useState } from "react";
 import {
   Zap, Plus, Pencil, Trash2, X, ChevronUp, ChevronDown,
   ArrowRight, RefreshCw, Save, AlertCircle, Layers, CheckCircle2,
-  Copy, Bot,
+  Copy, Bot, Crown, Map, Code2, Bug, PenLine, Search, ShieldCheck,
+  Swords, FileEdit, TrendingUp, TrendingDown, Database, TriangleAlert,
+  Brain, FileText, Flag, Shield, Globe, Target, BookOpen,
+  MessageSquare, Quote, FolderOpen, MessageCircle, Package,
+  Scale, Megaphone, type LucideIcon,
 } from "lucide-react";
 import {
   BUILTIN_PRESETS, loadCustomPresets, saveCustomPresets,
   loadActivePresetId, activatePreset,
   type Agent, type WorkflowLoop, type Workflow, type Preset,
 } from "@/lib/presets";
+
+/* ─── Agent icon map ─────────────────────────────────────── */
+
+const AGENT_ICONS: Record<string, LucideIcon> = {
+  ceo: Crown,
+  planner: Map,
+  developer: Code2,
+  qa: Bug,
+  writer: PenLine,
+  researcher: Search,
+  fact_checker: ShieldCheck,
+  devils_advocate: Swords,
+  editor: FileEdit,
+  analyst: TrendingUp,
+  bear_case: TrendingDown,
+  data_agent: Database,
+  risk_agent: TriangleAlert,
+  synthesizer: Brain,
+  reader: FileText,
+  clause_flagger: Flag,
+  protection_checker: Shield,
+  legal_editor: PenLine,
+  content_writer: PenLine,
+  seo_agent: Globe,
+  brand_voice: Target,
+  content_editor: FileEdit,
+  summarizer: BookOpen,
+  critic: MessageSquare,
+  literature_synthesizer: Layers,
+  citation_agent: Quote,
+};
+
+function AgentIcon({ id, color, size = 16 }: { id: string; color: string; size?: number }) {
+  const Icon = AGENT_ICONS[id] ?? Bot;
+  return <Icon size={size} style={{ color }} />;
+}
+
+const PRESET_CATEGORY_ICONS: Record<string, LucideIcon> = {
+  Engineering: Code2,
+  Research: Search,
+  Finance: TrendingUp,
+  Legal: Scale,
+  Marketing: Megaphone,
+  Custom: Layers,
+};
+
+function PresetIcon({ category, color, size = 18 }: { category: string; color: string; size?: number }) {
+  const Icon = PRESET_CATEGORY_ICONS[category] ?? Layers;
+  return <Icon size={size} style={{ color }} />;
+}
 
 /* ─── Constants ──────────────────────────────────────────── */
 
@@ -65,7 +119,12 @@ function AgentModal({ initial, existingIds, onSave, onClose }: {
         <div className="p-6 space-y-5">
           {error && <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm" style={{ background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.2)", color: "#dc2626" }}><AlertCircle size={14} /> {error}</div>}
           <div className="flex gap-3">
-            <div><label className="block text-xs font-semibold mb-1.5" style={{ color: "var(--muted)" }}>Icon</label><input className="w-14 text-center px-2 py-2 rounded-lg border text-xl outline-none" style={{ borderColor: "var(--card-border)", background: "var(--card)" }} value={form.icon} onChange={e => set("icon", e.target.value)} maxLength={2} /></div>
+            <div>
+              <label className="block text-xs font-semibold mb-1.5" style={{ color: "var(--muted)" }}>Icon</label>
+              <div className="w-12 h-10 rounded-lg flex items-center justify-center" style={{ background: `${form.color}12`, border: `1px solid ${form.color}25` }}>
+                <AgentIcon id={form.id || "default"} color={form.color} size={18} />
+              </div>
+            </div>
             <div className="flex-1"><label className="block text-xs font-semibold mb-1.5" style={{ color: "var(--muted)" }}>Role name *</label><input className="w-full px-3 py-2 rounded-lg border text-sm outline-none" style={{ borderColor: "var(--card-border)", background: "var(--card)", color: "var(--foreground)" }} value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value, id: isNew ? autoId(e.target.value) : f.id }))} placeholder="e.g. Researcher" /></div>
             <div className="w-36"><label className="block text-xs font-semibold mb-1.5" style={{ color: "var(--muted)" }}>Agent ID *</label><input className="w-full px-3 py-2 rounded-lg border text-sm font-mono outline-none" style={{ borderColor: "var(--card-border)", background: "var(--card)", color: "var(--foreground)" }} value={form.id} onChange={e => set("id", e.target.value.toLowerCase().replace(/\s/g, "_"))} disabled={!isNew} /></div>
           </div>
@@ -131,7 +190,7 @@ function WorkflowEditor({ workflow, agents, onChange, onClose }: {
                 const a = agentMap[id]; if (!a) return null;
                 return (
                   <div key={id} className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{ background: "var(--card)", border: "1px solid var(--card-border)" }}>
-                    <span className="text-lg">{a.icon}</span>
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: `${a.color}12`, border: `1px solid ${a.color}25` }}><AgentIcon id={a.id} color={a.color} size={15} /></div>
                     <div className="flex-1 min-w-0"><p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{a.role}</p><p className="text-xs font-mono" style={{ color: "var(--muted)" }}>{a.id}</p></div>
                     <div className="flex items-center gap-1">
                       <button onClick={() => moveNode(i, -1)} disabled={i === 0} className="p-1 rounded-md disabled:opacity-30" style={{ color: "var(--muted)" }}><ChevronUp size={15} /></button>
@@ -160,7 +219,12 @@ function WorkflowEditor({ workflow, agents, onChange, onClose }: {
                   <div key={loop.id} className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{ background: "var(--card)", border: "1px solid var(--card-border)" }}>
                     <RefreshCw size={14} style={{ color: "var(--accent)", flexShrink: 0 }} />
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap"><span className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{from?.icon} {from?.role}</span><ArrowRight size={12} style={{ color: "var(--muted)" }} /><span className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{to?.icon} {to?.role}</span><span className="text-xs px-2 py-0.5 rounded-full font-mono" style={{ background: "var(--accent-light)", color: "var(--accent)" }}>max {loop.maxIterations}×</span></div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {from && <div className="flex items-center gap-1.5"><AgentIcon id={from.id} color={from.color} size={13} /><span className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{from.role}</span></div>}
+                        <ArrowRight size={12} style={{ color: "var(--muted)" }} />
+                        {to && <div className="flex items-center gap-1.5"><AgentIcon id={to.id} color={to.color} size={13} /><span className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{to.role}</span></div>}
+                        <span className="text-xs px-2 py-0.5 rounded-full font-mono" style={{ background: "var(--accent-light)", color: "var(--accent)" }}>max {loop.maxIterations}×</span>
+                      </div>
                       {loop.condition && <p className="text-xs mt-0.5 font-mono" style={{ color: "var(--muted)" }}>when: {loop.condition}</p>}
                     </div>
                     <button onClick={() => setWf(w => ({ ...w, loops: w.loops.filter(l => l.id !== loop.id) }))} className="p-1 rounded-md" style={{ color: "#dc2626" }}><Trash2 size={13} /></button>
@@ -172,10 +236,10 @@ function WorkflowEditor({ workflow, agents, onChange, onClose }: {
               <p className="text-xs font-semibold" style={{ color: "var(--muted)" }}>Add feedback loop</p>
               <div className="flex gap-2 flex-wrap">
                 <select className="flex-1 min-w-0 px-3 py-2 rounded-lg border text-sm outline-none" style={{ borderColor: "var(--card-border)", background: "var(--background)", color: "var(--foreground)" }} value={newLoop.fromId} onChange={e => setNewLoop(l => ({ ...l, fromId: e.target.value }))}>
-                  <option value="">From agent…</option>{wf.nodeIds.map(id => { const a = agentMap[id]; return a ? <option key={id} value={id}>{a.icon} {a.role}</option> : null; })}
+                  <option value="">From agent…</option>{wf.nodeIds.map(id => { const a = agentMap[id]; return a ? <option key={id} value={id}>{a.role}</option> : null; })}
                 </select>
                 <select className="flex-1 min-w-0 px-3 py-2 rounded-lg border text-sm outline-none" style={{ borderColor: "var(--card-border)", background: "var(--background)", color: "var(--foreground)" }} value={newLoop.toId} onChange={e => setNewLoop(l => ({ ...l, toId: e.target.value }))}>
-                  <option value="">To agent…</option>{wf.nodeIds.map(id => { const a = agentMap[id]; return a ? <option key={id} value={id}>{a.icon} {a.role}</option> : null; })}
+                  <option value="">To agent…</option>{wf.nodeIds.map(id => { const a = agentMap[id]; return a ? <option key={id} value={id}>{a.role}</option> : null; })}
                 </select>
                 <input type="number" min={1} max={10} className="w-20 px-3 py-2 rounded-lg border text-sm outline-none text-center" style={{ borderColor: "var(--card-border)", background: "var(--background)", color: "var(--foreground)" }} value={newLoop.maxIterations} onChange={e => setNewLoop(l => ({ ...l, maxIterations: Number(e.target.value) }))} title="Max iterations" />
               </div>
@@ -246,7 +310,7 @@ function PresetCard({ preset, isActive, onUse, onFork, onDelete }: {
       <div className="h-1 w-full" style={{ background: `linear-gradient(90deg, ${cc}, ${cc}66)` }} />
       <div className="p-5 flex-1 flex flex-col">
         <div className="flex items-start gap-3 mb-3">
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0" style={{ background: `${cc}12`, border: `1px solid ${cc}25` }}>{preset.icon}</div>
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${cc}12`, border: `1px solid ${cc}25` }}><PresetIcon category={preset.category} color={cc} size={18} /></div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-0.5">
               <h3 className="text-sm font-bold" style={{ color: "var(--foreground)" }}>{preset.name}</h3>
@@ -260,7 +324,7 @@ function PresetCard({ preset, isActive, onUse, onFork, onDelete }: {
         <div className="flex items-center gap-1.5 mb-3 flex-wrap">
           {preset.agents.map((a, i) => (
             <div key={a.id} className="flex items-center gap-1.5">
-              <div className="w-5 h-5 rounded-md flex items-center justify-center text-xs" style={{ background: `${a.color}12`, border: `1px solid ${a.color}25` }} title={a.role}>{a.icon}</div>
+              <div className="w-5 h-5 rounded-md flex items-center justify-center" style={{ background: `${a.color}12`, border: `1px solid ${a.color}25` }} title={a.role}><AgentIcon id={a.id} color={a.color} size={11} /></div>
               {i < preset.agents.length - 1 && <ArrowRight size={9} style={{ color: "var(--muted-light)" }} />}
             </div>
           ))}
@@ -472,7 +536,7 @@ export default function AgentsPage() {
               {/* Custom empty state */}
               {categoryFilter === "Custom" && customPresets.length === 0 && (
                 <div className="rounded-2xl p-10 text-center" style={{ border: "2px dashed var(--card-border)" }}>
-                  <div className="text-3xl mb-2">🗂️</div>
+                  <div className="mb-3 flex justify-center"><FolderOpen size={32} style={{ color: "var(--muted-light)" }} /></div>
                   <p className="text-sm font-medium mb-1" style={{ color: "var(--foreground)" }}>No custom presets yet</p>
                   <p className="text-xs mb-4" style={{ color: "var(--muted)" }}>Fork a built-in preset or configure the Team tab and save it.</p>
                   <button onClick={() => setCategoryFilter("All")} className="text-xs px-3 py-2 rounded-lg font-semibold" style={{ background: "var(--accent-light)", color: "var(--accent)" }}>Browse built-ins</button>
@@ -512,7 +576,7 @@ export default function AgentsPage() {
               {/* Agent cards */}
               {agents.length === 0 ? (
                 <div className="rounded-2xl p-12 text-center" style={{ border: "2px dashed var(--card-border)" }}>
-                  <div className="text-4xl mb-3">🤖</div>
+                  <div className="mb-3 flex justify-center"><Bot size={36} style={{ color: "var(--muted-light)" }} /></div>
                   <p className="text-sm font-medium mb-1" style={{ color: "var(--foreground)" }}>No agents yet</p>
                   <p className="text-sm mb-4" style={{ color: "var(--muted)" }}>Pick a preset from the Presets tab, or create an agent from scratch.</p>
                   <div className="flex items-center justify-center gap-3">
@@ -525,7 +589,7 @@ export default function AgentsPage() {
                   {agents.map(agent => (
                     <div key={agent.id} className="card p-6">
                       <div className="flex items-start gap-4">
-                        <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl shrink-0" style={{ background: `${agent.color}10`, border: `1px solid ${agent.color}25` }}>{agent.icon}</div>
+                        <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${agent.color}10`, border: `1px solid ${agent.color}25` }}><AgentIcon id={agent.id} color={agent.color} size={22} /></div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-3 mb-1 flex-wrap">
                             <h2 className="text-lg font-bold" style={{ color: "var(--foreground)" }}>{agent.role}</h2>
@@ -574,9 +638,18 @@ export default function AgentsPage() {
                   <button onClick={() => setWorkflowOpen(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium" style={{ background: "var(--card-border)", color: "var(--muted)" }}><Pencil size={11} /> Edit workflow</button>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  {[{ label: "User Goal", color: "#64748b", icon: "💬" }, ...workflow.nodeIds.map(id => { const a = agentMap[id]; return a ? { label: a.role, color: a.color, icon: a.icon } : null; }).filter(Boolean) as { label: string; color: string; icon: string }[], { label: "Delivery", color: "#64748b", icon: "📦" }].map((step, i, arr) => (
+                  {[
+                    { label: "User Goal", color: "#64748b", agentId: null as string | null },
+                    ...workflow.nodeIds.map(id => { const a = agentMap[id]; return a ? { label: a.role, color: a.color, agentId: a.id } : null; }).filter(Boolean) as { label: string; color: string; agentId: string }[],
+                    { label: "Delivery", color: "#64748b", agentId: null as string | null },
+                  ].map((step, i, arr) => (
                     <div key={`${step.label}-${i}`} className="flex items-center gap-2">
-                      <div className="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5" style={{ background: `${step.color}10`, color: step.color, border: `1px solid ${step.color}25` }}><span>{step.icon}</span><span>{step.label}</span></div>
+                      <div className="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5" style={{ background: `${step.color}10`, color: step.color, border: `1px solid ${step.color}25` }}>
+                        {step.agentId
+                          ? <AgentIcon id={step.agentId} color={step.color} size={11} />
+                          : i === 0 ? <MessageCircle size={11} /> : <Package size={11} />}
+                        <span>{step.label}</span>
+                      </div>
                       {i < arr.length - 1 && <ArrowRight size={14} style={{ color: "var(--muted-light)", flexShrink: 0 }} />}
                     </div>
                   ))}
@@ -586,7 +659,7 @@ export default function AgentsPage() {
                     {workflow.loops.map(loop => {
                       const from = agentMap[loop.fromId]; const to = agentMap[loop.toId];
                       if (!from || !to) return null;
-                      return <div key={loop.id} className="flex items-center gap-2 text-xs" style={{ color: "var(--muted)" }}><RefreshCw size={11} style={{ color: "var(--accent)" }} /><span>{from.icon} {from.role} loops back to {to.icon} {to.role}{loop.condition ? ` when ${loop.condition}` : ""} (max {loop.maxIterations}×)</span></div>;
+                      return <div key={loop.id} className="flex items-center gap-2 text-xs" style={{ color: "var(--muted)" }}><RefreshCw size={11} style={{ color: "var(--accent)" }} /><span>{from.role} loops back to {to.role}{loop.condition ? ` when ${loop.condition}` : ""} (max {loop.maxIterations}×)</span></div>;
                     })}
                   </div>
                 )}
