@@ -10,6 +10,7 @@ import {
   Map,
   Bot,
   ListTodo,
+  Layers,
   ChevronRight,
   Menu,
   X,
@@ -19,6 +20,7 @@ const nav = [
   { href: "/", label: "Home", icon: LayoutDashboard },
   { href: "/architecture", label: "Architecture", icon: GitBranch },
   { href: "/plan", label: "Dev Plan", icon: Map },
+  { href: "/presets", label: "Presets", icon: Layers },
   { href: "/agents", label: "Agents", icon: Bot },
   { href: "/projects", label: "Projects", icon: ListTodo },
 ];

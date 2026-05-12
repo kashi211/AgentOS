@@ -1,145 +1,22 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import {
   Zap, Plus, Pencil, Trash2, X, ChevronUp, ChevronDown,
-  ArrowRight, RefreshCw, Save, AlertCircle,
+  ArrowRight, RefreshCw, Save, AlertCircle, Layers, CheckCircle2,
 } from "lucide-react";
+import {
+  BUILTIN_PRESETS, loadCustomPresets, saveCustomPresets,
+  loadActivePresetId, activatePreset,
+  type Agent, type WorkflowLoop, type Workflow, type Preset,
+} from "@/lib/presets";
 
-/* ─── Types ─────────────────────────────────────────────── */
+/* ─── Defaults (from built-in software-dev preset) ─────────── */
 
-interface Agent {
-  id: string;
-  role: string;
-  icon: string;
-  color: string;
-  model: string;
-  description: string;
-  responsibilities: string[];
-  systemPrompt: string;
-  tools: string[];
-}
-
-interface WorkflowLoop {
-  id: string;
-  fromId: string;
-  toId: string;
-  maxIterations: number;
-  condition: string;
-}
-
-interface Workflow {
-  nodeIds: string[];
-  loops: WorkflowLoop[];
-}
-
-/* ─── Defaults ───────────────────────────────────────────── */
-
-const DEFAULT_AGENTS: Agent[] = [
-  {
-    id: "ceo",
-    role: "CEO",
-    icon: "👔",
-    color: "#4f46e5",
-    model: "Claude Opus 4.7",
-    description:
-      "Receives the user's goal, defines success criteria, and produces a structured execution plan. Delegates to Planner and reviews final output before delivery.",
-    responsibilities: [
-      "Interprets ambiguous goals into clear deliverables",
-      "Produces structured JSON execution plans",
-      "Reviews final output quality",
-      "Escalates blockers to the user",
-    ],
-    systemPrompt:
-      "You are the CEO of AgentOS. Given a goal, produce a structured execution plan assigning work to Planner, Developer, QA, and Writer agents...",
-    tools: [],
-  },
-  {
-    id: "planner",
-    role: "Planner",
-    icon: "🗺️",
-    color: "#7c3aed",
-    model: "Claude Opus 4.7",
-    description:
-      "Receives the CEO plan and decomposes it into a dependency-ordered list of concrete steps. Each step is assigned to a specific agent with full context.",
-    responsibilities: [
-      "Breaks goals into dependency-ordered steps",
-      "Assigns each step to the right agent",
-      "Identifies steps that can run in parallel",
-      "Surfaces constraints and edge cases upfront",
-    ],
-    systemPrompt:
-      "You are the Planner. Decompose the CEO's plan into a detailed, dependency-ordered JSON step list with agent assignments...",
-    tools: [],
-  },
-  {
-    id: "developer",
-    role: "Developer",
-    icon: "💻",
-    color: "#0284c7",
-    model: "Claude Opus 4.7",
-    description:
-      "Implements each assigned step — writing complete, production-quality code. Has access to file read/write tools and iterates based on QA feedback.",
-    responsibilities: [
-      "Writes complete, working code — no placeholders",
-      "Uses file tools to read context and write output",
-      "Incorporates QA feedback on revision cycles",
-      "Documents key decisions inline",
-    ],
-    systemPrompt:
-      "You are the Developer. Write complete, production-quality code for each assigned step. Use file tools to read context...",
-    tools: ["read_file", "write_file"],
-  },
-  {
-    id: "qa",
-    role: "QA",
-    icon: "🔍",
-    color: "#059669",
-    model: "Claude Sonnet 4.6",
-    description:
-      "Reviews Developer output against the original task description. Scores each submission and returns structured pass/fail with concrete feedback.",
-    responsibilities: [
-      "Scores output 0–10 (≥7 passes)",
-      "Returns structured JSON pass/fail verdict",
-      "Provides line-specific feedback for failures",
-      "Escalates after 2 failed revision cycles",
-    ],
-    systemPrompt:
-      "You are the QA Agent. Review developer output and return a JSON verdict with score, issues, and concrete feedback...",
-    tools: [],
-  },
-  {
-    id: "writer",
-    role: "Writer",
-    icon: "✍️",
-    color: "#d97706",
-    model: "Claude Sonnet 4.6",
-    description:
-      "Generates professional documentation, READMEs, and technical reports once all development steps are complete.",
-    responsibilities: [
-      "Writes GitHub-flavoured Markdown docs",
-      "Summarises what was built and key decisions",
-      "Generates setup and usage instructions",
-      "Produces the final deliverable report",
-    ],
-    systemPrompt:
-      "You are the Writer. Produce clear, professional Markdown documentation summarising what was built...",
-    tools: [],
-  },
-];
-
-const DEFAULT_WORKFLOW: Workflow = {
-  nodeIds: ["ceo", "planner", "developer", "qa", "writer"],
-  loops: [
-    {
-      id: "qa-dev-loop",
-      fromId: "qa",
-      toId: "developer",
-      maxIterations: 2,
-      condition: "score < 7",
-    },
-  ],
-};
+const _softwareDev = BUILTIN_PRESETS.find(p => p.id === "software-dev")!;
+const DEFAULT_AGENTS: Agent[] = _softwareDev.agents;
+const DEFAULT_WORKFLOW: Workflow = _softwareDev.workflow;
 
 const MODELS = ["Claude Opus 4.7", "Claude Sonnet 4.6", "Claude Haiku 4.5"];
 
@@ -739,10 +616,89 @@ function WorkflowEditor({
 
 /* ─── Main page ───────────────────────────────────────────── */
 
+/* ─── Save-as-preset mini modal ──────────────────────────── */
+
+const CATEGORY_COLORS_MAP: Record<string, string> = {
+  Engineering: "#0284c7", Research: "#7c3aed", Finance: "#059669",
+  Legal: "#64748b", Marketing: "#ec4899", Custom: "#64748b",
+};
+
+function SavePresetModal({
+  onSave,
+  onClose,
+}: {
+  onSave: (meta: { name: string; tagline: string; icon: string; category: string; description: string }) => void;
+  onClose: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [tagline, setTagline] = useState("");
+  const [icon, setIcon] = useState("🤖");
+  const [category, setCategory] = useState("Engineering");
+  const [description, setDescription] = useState("");
+  const [error, setError] = useState("");
+
+  const submit = () => {
+    if (!name.trim()) { setError("Name is required."); return; }
+    onSave({ name: name.trim(), tagline: tagline.trim(), icon, category, description: description.trim() });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.45)" }}>
+      <div className="w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden" style={{ background: "var(--background)", border: "1px solid var(--card-border)" }}>
+        <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: "var(--card-border)" }}>
+          <h2 className="text-base font-bold" style={{ color: "var(--foreground)" }}>Save current team as preset</h2>
+          <button onClick={onClose} className="p-1 rounded-lg" style={{ color: "var(--muted)" }}><X size={18} /></button>
+        </div>
+        <div className="p-6 space-y-4">
+          {error && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm" style={{ background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.2)", color: "#dc2626" }}>
+              <AlertCircle size={14} /> {error}
+            </div>
+          )}
+          <div className="flex gap-3">
+            <div>
+              <label className="block text-xs font-semibold mb-1.5" style={{ color: "var(--muted)" }}>Icon</label>
+              <input className="w-14 text-center px-2 py-2 rounded-lg border text-xl outline-none" style={{ borderColor: "var(--card-border)", background: "var(--card)" }} value={icon} onChange={e => setIcon(e.target.value)} maxLength={2} />
+            </div>
+            <div className="flex-1">
+              <label className="block text-xs font-semibold mb-1.5" style={{ color: "var(--muted)" }}>Preset name *</label>
+              <input className="w-full px-3 py-2 rounded-lg border text-sm outline-none" style={{ borderColor: "var(--card-border)", background: "var(--card)", color: "var(--foreground)" }} value={name} onChange={e => setName(e.target.value)} placeholder="e.g. My Research Team" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold mb-1.5" style={{ color: "var(--muted)" }}>Tagline</label>
+            <input className="w-full px-3 py-2 rounded-lg border text-sm outline-none" style={{ borderColor: "var(--card-border)", background: "var(--card)", color: "var(--foreground)" }} value={tagline} onChange={e => setTagline(e.target.value)} placeholder="e.g. Research → Verify → Decide" />
+          </div>
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <label className="block text-xs font-semibold mb-1.5" style={{ color: "var(--muted)" }}>Category</label>
+              <select className="w-full px-3 py-2 rounded-lg border text-sm outline-none" style={{ borderColor: "var(--card-border)", background: "var(--card)", color: "var(--foreground)" }} value={category} onChange={e => setCategory(e.target.value)}>
+                {["Engineering", "Research", "Finance", "Legal", "Marketing", "Custom"].map(c => <option key={c}>{c}</option>)}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold mb-1.5" style={{ color: "var(--muted)" }}>Description</label>
+            <textarea className="w-full px-3 py-2 rounded-lg border text-sm outline-none resize-none" style={{ borderColor: "var(--card-border)", background: "var(--card)", color: "var(--foreground)" }} rows={3} value={description} onChange={e => setDescription(e.target.value)} placeholder="What kind of tasks is this preset best for?" />
+          </div>
+          <p className="text-xs" style={{ color: "var(--muted)" }}>This will save your current {" "}<strong>agent roster</strong> and <strong>workflow</strong> as a reusable preset.</p>
+        </div>
+        <div className="flex justify-end gap-3 px-6 py-4 border-t" style={{ borderColor: "var(--card-border)" }}>
+          <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm font-medium" style={{ background: "var(--card)", color: "var(--muted)", border: "1px solid var(--card-border)" }}>Cancel</button>
+          <button onClick={submit} className="px-4 py-2 rounded-lg text-sm font-semibold text-white flex items-center gap-2" style={{ background: "var(--accent)" }}><Save size={14} /> Save preset</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AgentsPage() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [workflow, setWorkflow] = useState<Workflow>(DEFAULT_WORKFLOW);
   const [mounted, setMounted] = useState(false);
+  const [activePresetId, setActivePresetId] = useState<string | null>(null);
+  const [savePresetOpen, setSavePresetOpen] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
 
   const [agentModal, setAgentModal] = useState<{ open: boolean; agent: Agent | null }>({ open: false, agent: null });
   const [workflowOpen, setWorkflowOpen] = useState(false);
@@ -751,8 +707,30 @@ export default function AgentsPage() {
   useEffect(() => {
     setAgents(loadAgents());
     setWorkflow(loadWorkflow());
+    setActivePresetId(loadActivePresetId());
     setMounted(true);
   }, []);
+
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const handleSavePreset = (meta: { name: string; tagline: string; icon: string; category: string; description: string }) => {
+    const allCustom = loadCustomPresets();
+    const newPreset: Preset = {
+      id: `custom-${Date.now()}`,
+      ...meta,
+      categoryColor: ({ Engineering: "#0284c7", Research: "#7c3aed", Finance: "#059669", Legal: "#64748b", Marketing: "#ec4899" } as Record<string,string>)[meta.category] ?? "#64748b",
+      agents,
+      workflow,
+      isBuiltIn: false,
+      createdAt: new Date().toISOString(),
+    };
+    saveCustomPresets([newPreset, ...allCustom]);
+    setSavePresetOpen(false);
+    showToast(`Preset "${newPreset.name}" saved to the library.`);
+  };
 
   const persistAgents = (updated: Agent[]) => {
     setAgents(updated);
@@ -808,14 +786,37 @@ export default function AgentsPage() {
             <p className="text-base max-w-2xl" style={{ color: "var(--muted)" }}>
               {agents.length} specialized agent{agents.length !== 1 ? "s" : ""} — each with a defined role, model, and toolset.
             </p>
+            {/* Active preset badge */}
+            {activePresetId && (() => {
+              const allPresets = [...BUILTIN_PRESETS, ...loadCustomPresets()];
+              const active = allPresets.find(p => p.id === activePresetId);
+              if (!active) return null;
+              return (
+                <div className="flex items-center gap-2 mt-3">
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold" style={{ background: `${active.categoryColor}12`, border: `1px solid ${active.categoryColor}25`, color: active.categoryColor }}>
+                    <CheckCircle2 size={11} /> {active.icon} {active.name}
+                  </div>
+                  <Link href="/presets" className="text-xs underline" style={{ color: "var(--muted)" }}>change preset</Link>
+                </div>
+              );
+            })()}
           </div>
-          <button
-            onClick={() => setAgentModal({ open: true, agent: null })}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shrink-0"
-            style={{ background: "var(--accent)", boxShadow: "0 2px 8px rgba(79,70,229,0.25)" }}
-          >
-            <Plus size={15} /> New agent
-          </button>
+          <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+            <button
+              onClick={() => setSavePresetOpen(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold"
+              style={{ background: "var(--card)", color: "var(--muted)", border: "1px solid var(--card-border)" }}
+            >
+              <Layers size={14} /> Save as preset
+            </button>
+            <button
+              onClick={() => setAgentModal({ open: true, agent: null })}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white"
+              style={{ background: "var(--accent)", boxShadow: "0 2px 8px rgba(79,70,229,0.25)" }}
+            >
+              <Plus size={15} /> New agent
+            </button>
+          </div>
         </div>
 
         {/* Model legend */}
@@ -1037,6 +1038,19 @@ export default function AgentsPage() {
           onChange={persistWorkflow}
           onClose={() => setWorkflowOpen(false)}
         />
+      )}
+
+      {/* Save as preset modal */}
+      {savePresetOpen && (
+        <SavePresetModal onSave={handleSavePreset} onClose={() => setSavePresetOpen(false)} />
+      )}
+
+      {/* Toast */}
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-3 rounded-xl shadow-xl text-sm font-medium text-white z-50" style={{ background: "#1e1e2e", maxWidth: "90vw" }}>
+          <CheckCircle2 size={15} style={{ color: "#4ade80" }} />
+          {toast}
+        </div>
       )}
     </div>
   );
