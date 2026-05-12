@@ -97,7 +97,18 @@ export default function ProjectPage() {
     setLoadingContent(true);
     try {
       const res = await fetch(`${API}/tasks/${task_id}/files/${path}`);
-      if (res.ok) setFileContent(await res.text());
+      if (res.ok) {
+        let content = await res.text();
+        if (path.endsWith(".html")) {
+          // Inject <base> so relative URLs (script.js, styles.css) resolve
+          // to the backend output directory when used in srcdoc
+          const base = `<base href="${API}/output/${task_id}/">`;
+          content = content.match(/<head/i)
+            ? content.replace(/<head([^>]*)>/i, `<head$1>${base}`)
+            : base + content;
+        }
+        setFileContent(content);
+      }
     } finally {
       setLoadingContent(false);
     }
