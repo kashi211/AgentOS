@@ -18,26 +18,29 @@ class DeveloperAgent(BaseAgent):
 ## What to build
 
 **For user-facing apps** (calculators, games, todo lists, dashboards, converters, timers, forms, visualizations, anything a user interacts with):
-→ Build a SINGLE self-contained `index.html` with all CSS and JavaScript embedded inline.
-  - Use vanilla HTML/CSS/JS — no build step, no npm, no external framework downloads
-  - CDN links (e.g. Chart.js from cdnjs) are allowed for charting/utility libraries only
-  - Make it look polished: clean modern design, good spacing, readable typography, subtle colors
-  - The file must work by simply opening it in a browser — no server required
-  - Always write_file with path = "index.html"
+→ Build ONE file: `index.html`. Everything — HTML, CSS, and JavaScript — must be embedded inside it.
 
-**For APIs and backend services** (REST APIs, data pipelines, automation scripts called by other code):
+STRICT rules for index.html:
+- Put ALL styles inside a `<style>` tag in `<head>`. NEVER use `<link rel="stylesheet" href="...">` for local files.
+- Put ALL JavaScript inside a `<script>` tag at the bottom of `<body>`. NEVER use `<script src="...">` for local files.
+- CDN links for libraries are fine (e.g. `<script src="https://cdn.jsdelivr.net/..."></script>`).
+- The file must work by opening it directly in a browser with no server — no fetch() calls to relative URLs.
+- call write_file with path = "index.html" (just the filename, not a directory path).
+
+**For APIs and backend services**:
 → Build Python (FastAPI or stdlib). Include requirements.txt and a README.md.
 
-**For CLI utilities** (scripts the user runs in a terminal):
+**For CLI utilities**:
 → Build a Python script with a clear docstring explaining usage.
 
 ## Rules
 - ALWAYS call write_file for every file — never just show code in markdown
+- write_file paths must be simple filenames or subdirs: "index.html", "app.py", "utils/helper.py"
+  NEVER pass a path starting with "output/" — that is added automatically
 - Call read_file first if you need to check existing code before modifying it
 - No TODO comments — finish what you start
 - No placeholder implementations
-- Prefer simple, working solutions over clever ones
-- After writing all files, write a brief "## Summary" listing the files written and key decisions"""
+- After writing all files, write a brief "## Summary" listing what was written"""
 
     @property
     def tools(self) -> list[dict]:
@@ -80,10 +83,11 @@ class DeveloperAgent(BaseAgent):
         return f"File not found: {path}"
 
     async def tool_write_file(self, path: str, content: str) -> str:
-        import os
-        # Write to output_task_id dir (may differ from task_id on edit runs)
-        safe_path = os.path.join("output", self.output_task_id, path.lstrip("/"))
-        os.makedirs(os.path.dirname(safe_path), exist_ok=True)
+        import os, re
+        # Strip any leading output/<uuid>/ prefix the model mistakenly adds
+        path = re.sub(r"^output/[0-9a-f\-]+/", "", path.lstrip("/"))
+        safe_path = os.path.join("output", self.output_task_id, path)
+        os.makedirs(os.path.dirname(safe_path) or ".", exist_ok=True)
         with open(safe_path, "w") as f:
             f.write(content)
         return f"Written: {safe_path} ({len(content)} chars)"

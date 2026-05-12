@@ -231,7 +231,7 @@ export default function ProjectPage() {
               <Loader2 size={20} style={{ color: "#4f46e5", animation: "spin 0.8s linear infinite" }} />
             </div>
           ) : mode === "demo" && hasDemo ? (
-            <iframe key={iframeKey} src={demoSrc} style={{ flex: 1, width: "100%", border: "none", background: "#fff" }} sandbox="allow-scripts allow-forms allow-modals allow-popups" title="App Demo" />
+            <iframe key={iframeKey} src={demoSrc} style={{ flex: 1, width: "100%", border: "none", background: "#fff" }} sandbox="allow-scripts allow-forms allow-modals allow-popups allow-same-origin" title="App Demo" />
           ) : (
             <div style={{ flex: 1, overflowY: "auto", padding: 24 }}>
               <pre style={{ margin: 0, color: "#e2e8f0", fontSize: 13, lineHeight: 1.7, fontFamily: "monospace", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{fileContent}</pre>
