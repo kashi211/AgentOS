@@ -16,15 +16,28 @@ from routes.edit import router as edit_router
 async def lifespan(app: FastAPI):
     os.makedirs("output", exist_ok=True)
     await init_db()
+    await _reset_orphaned_tasks()
     yield
     await close_db()
+
+
+async def _reset_orphaned_tasks():
+    from db.connection import get_pool
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        count = await conn.execute(
+            "UPDATE tasks SET status='failed', updated_at=NOW() "
+            "WHERE status IN ('pending', 'planning', 'executing', 'reviewing')"
+        )
+    print(f"[startup] reset orphaned tasks: {count}")
 
 
 app = FastAPI(title="AgentOS API", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "https://agentos.vercel.app"],
+    allow_origin_regex=r"http://localhost:\d+",
+    allow_origins=["https://agentos.vercel.app"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
