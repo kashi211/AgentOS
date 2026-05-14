@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
-import { ArrowLeft, ExternalLink, RefreshCw, Send, Loader2 } from "lucide-react";
+import { ArrowLeft, ExternalLink, RefreshCw, Send, Loader2, Save } from "lucide-react";
 import Link from "next/link";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -22,6 +22,7 @@ interface EditThread {
   events: AgentEvent[];
   done: boolean;
   failed: boolean;
+  escalated?: boolean;
 }
 
 const agentColor: Record<string, string> = {
@@ -51,6 +52,8 @@ export default function ProjectPage() {
   const [files, setFiles] = useState<TaskFile[]>([]);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState("");
+  const [editedContent, setEditedContent] = useState("");
+  const [saving, setSaving] = useState(false);
   const [loadingContent, setLoadingContent] = useState(false);
   const [mode, setMode] = useState<"demo" | "code">("demo");
   const [iframeKey, setIframeKey] = useState(0);
@@ -59,8 +62,32 @@ export default function ProjectPage() {
   const [editInput, setEditInput] = useState("");
   const [threads, setThreads] = useState<EditThread[]>([]);
   const [editing, setEditing] = useState(false);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const chatRef = useRef<HTMLDivElement>(null);
   const editWsRef = useRef<WebSocket | null>(null);
+  const selectedFileRef = useRef<string | null>(null);
+  const savedContentRef = useRef<string>("");
+
+  const storageKey = `edit-threads-${task_id}`;
+
+  // Restore threads from localStorage on mount; mark any in-progress as failed
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (raw) {
+        const saved: EditThread[] = JSON.parse(raw);
+        setThreads(saved.map(t => t.done || t.failed ? t : { ...t, failed: true }));
+      }
+    } catch {}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storageKey]);
+
+  // Persist threads to localStorage whenever they change
+  useEffect(() => {
+    if (threads.length > 0) {
+      try { localStorage.setItem(storageKey, JSON.stringify(threads)); } catch {}
+    }
+  }, [threads, storageKey]);
 
   const fetchFiles = async () => {
     try {
@@ -93,15 +120,16 @@ export default function ProjectPage() {
 
   const selectFile = async (path: string) => {
     setSelectedFile(path);
+    selectedFileRef.current = path;
     setMode(path.endsWith(".html") ? "demo" : "code");
     setLoadingContent(true);
     try {
       const res = await fetch(`${API}/tasks/${task_id}/files/${path}`);
       if (res.ok) {
         let content = await res.text();
+        setEditedContent(content);
+        savedContentRef.current = content;
         if (path.endsWith(".html")) {
-          // Inject <base> so relative URLs (script.js, styles.css) resolve
-          // to the backend output directory when used in srcdoc
           const base = `<base href="${API}/output/${task_id}/">`;
           content = content.match(/<head/i)
             ? content.replace(/<head([^>]*)>/i, `<head$1>${base}`)
@@ -111,6 +139,25 @@ export default function ProjectPage() {
       }
     } finally {
       setLoadingContent(false);
+    }
+  };
+
+  const isDirty = editedContent !== savedContentRef.current;
+
+  const saveFile = async () => {
+    if (!selectedFile || saving) return;
+    setSaving(true);
+    try {
+      await fetch(`${API}/tasks/${task_id}/files/${selectedFile}`, {
+        method: "PUT",
+        body: editedContent,
+      });
+      savedContentRef.current = editedContent;
+      // Re-load so srcdoc and base-tag injection stay in sync
+      await selectFile(selectedFile);
+      setIframeKey((k) => k + 1);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -143,25 +190,33 @@ export default function ProjectPage() {
 
     ws.onmessage = (e) => {
       const event: AgentEvent = JSON.parse(e.data);
+      const isDone      = event.type === "done";
+      const isEscalated = event.type === "done_escalated";
+      const isFailed    = event.type === "error";
+
       setThreads((prev) =>
         prev.map((t) => {
           if (t.id !== threadId) return t;
-          const done = event.type === "done";
-          const failed = event.type === "error";
-          return { ...t, events: [...t.events, event], done, failed };
+          return {
+            ...t,
+            events: [...t.events, event],
+            done: isDone || isEscalated,
+            failed: isFailed,
+            escalated: isEscalated,
+          };
         })
       );
 
-      if (event.type === "done") {
+      if (isDone || isEscalated) {
         setEditing(false);
         ws.close();
-        // Refresh files list and reload iframe
-        fetchFiles().then(() => {
+        const current = selectedFileRef.current;
+        fetchFiles().then(async () => {
+          if (current) await selectFile(current);
           setIframeKey((k) => k + 1);
-          if (selectedFile) selectFile(selectedFile);
         });
       }
-      if (event.type === "error") {
+      if (isFailed) {
         setEditing(false);
         ws.close();
       }
@@ -252,8 +307,26 @@ export default function ProjectPage() {
               title="App Demo"
             />
           ) : (
-            <div style={{ flex: 1, overflowY: "auto", padding: 24 }}>
-              <pre style={{ margin: 0, color: "#e2e8f0", fontSize: 13, lineHeight: 1.7, fontFamily: "monospace", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{fileContent}</pre>
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+              {/* Save bar */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8, padding: "6px 12px", borderBottom: "1px solid #1e293b", flexShrink: 0, background: "#0a0f1e" }}>
+                {isDirty && <span style={{ color: "#f59e0b", fontSize: 11 }}>● unsaved changes</span>}
+                <button
+                  onClick={saveFile}
+                  disabled={!isDirty || saving}
+                  style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 12px", borderRadius: 6, border: "none", cursor: isDirty && !saving ? "pointer" : "default", background: isDirty && !saving ? "#4f46e5" : "#1e293b", color: isDirty && !saving ? "#fff" : "#475569", fontSize: 12, fontWeight: 600 }}
+                >
+                  {saving ? <Loader2 size={12} style={{ animation: "spin 0.8s linear infinite" }} /> : <Save size={12} />}
+                  {saving ? "Saving…" : "Save"}
+                </button>
+              </div>
+              <textarea
+                value={editedContent}
+                onChange={(e) => setEditedContent(e.target.value)}
+                onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "s") { e.preventDefault(); saveFile(); } }}
+                spellCheck={false}
+                style={{ flex: 1, width: "100%", background: "#0d1117", color: "#e2e8f0", fontSize: 13, lineHeight: 1.7, fontFamily: "monospace", padding: 20, border: "none", outline: "none", resize: "none", overflowY: "auto" }}
+              />
             </div>
           )}
         </div>
@@ -288,6 +361,9 @@ export default function ProjectPage() {
                   {thread.events.map((ev, i) => {
                     const color = agentColor[ev.agent] ?? "#64748b";
                     const icon = agentIcon[ev.agent] ?? "⚙️";
+                    const key = `${thread.id}-${i}`;
+                    const isExp = expanded.has(key);
+                    const truncated = ev.content.length > 280;
                     return (
                       <div key={i} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
                         <div style={{ width: 22, height: 22, borderRadius: 6, background: `${color}15`, border: `1px solid ${color}25`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, flexShrink: 0, marginTop: 1 }}>{icon}</div>
@@ -297,8 +373,16 @@ export default function ProjectPage() {
                             <span style={{ background: "#1e293b", color: "#475569", fontSize: 9, padding: "1px 5px", borderRadius: 4 }}>{ev.type}</span>
                           </div>
                           <div style={{ color: "#94a3b8", fontSize: 12, lineHeight: 1.5, background: "#111827", border: "1px solid #1e293b", borderRadius: 8, padding: "6px 10px", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-                            {ev.content.slice(0, 300)}{ev.content.length > 300 ? "…" : ""}
+                            {isExp ? ev.content : ev.content.slice(0, 280)}{!isExp && truncated ? "…" : ""}
                           </div>
+                          {truncated && (
+                            <button
+                              onClick={() => setExpanded((s) => { const n = new Set(s); isExp ? n.delete(key) : n.add(key); return n; })}
+                              style={{ marginTop: 3, background: "none", border: "none", color: "#475569", fontSize: 10, cursor: "pointer", padding: "2px 0" }}
+                            >
+                              {isExp ? "show less ↑" : "show more ↓"}
+                            </button>
+                          )}
                         </div>
                       </div>
                     );
@@ -309,9 +393,14 @@ export default function ProjectPage() {
                       <span style={{ color: "#334155", fontSize: 11 }}>agents working…</span>
                     </div>
                   )}
-                  {thread.done && (
+                  {thread.done && !thread.escalated && (
                     <div style={{ background: "rgba(5,150,105,0.1)", border: "1px solid rgba(5,150,105,0.2)", borderRadius: 8, padding: "6px 12px", fontSize: 12, color: "#34d399", fontWeight: 600 }}>
                       ✓ Changes applied — preview updated
+                    </div>
+                  )}
+                  {thread.done && thread.escalated && (
+                    <div style={{ background: "rgba(234,179,8,0.08)", border: "1px solid rgba(234,179,8,0.2)", borderRadius: 8, padding: "6px 12px", fontSize: 12, color: "#fbbf24", fontWeight: 600 }}>
+                      ⚠ QA couldn&apos;t verify after 2 attempts — delivered as-is
                     </div>
                   )}
                   {thread.failed && (

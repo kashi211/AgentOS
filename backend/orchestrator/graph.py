@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import uuid
 from typing import Annotated, Any
 
@@ -16,6 +17,14 @@ from memory.store import MemoryStore
 from db.connection import get_pool
 
 MAX_REVISIONS = 2
+
+
+def _workflow_config() -> dict:
+    try:
+        with open("agent_configs.json") as f:
+            return json.load(f).get("workflow", {})
+    except Exception:
+        return {}
 
 
 class AgentState(TypedDict):
@@ -102,7 +111,14 @@ async def developer_node(state: AgentState) -> dict:
     )
 
     if state["revision_count"] > 0:
-        context += f"\n\nQA feedback (revision {state['revision_count']}):\n{state['agent_outputs'].get('qa_feedback', '')}"
+        context += (
+            f"\n\nQA feedback (revision {state['revision_count']}):\n"
+            f"{state['agent_outputs'].get('qa_feedback', '')}\n\n"
+            "IMPORTANT: your previous attempt may have already modified the files on disk. "
+            "Use read_file to check the current state first. "
+            "If the requested change is already present, confirm that in your summary and PASS — do not re-apply changes that are already there. "
+            "If the change is missing or wrong, fix it and write the file."
+        )
 
     response = await agent.run(context)
     await _save_message(state["task_id"], "developer", "output", response)
@@ -163,6 +179,10 @@ async def writer_node(state: AgentState) -> dict:
     memory = MemoryStore(state["task_id"])
     agent = WriterAgent(state["task_id"], memory)
 
+    # Detect QA escalation: writer was called because revisions were exhausted,
+    # not because QA passed — status would still be "executing" in that case.
+    escalated = state.get("revision_count", 0) >= MAX_REVISIONS and state.get("status") != "done"
+
     all_output = "\n\n---\n\n".join(
         f"**{k}**:\n{v}" for k, v in state["agent_outputs"].items() if not k.startswith("qa")
     )
@@ -174,14 +194,23 @@ async def writer_node(state: AgentState) -> dict:
     await _update_task_status(state["task_id"], "done")
     await _save_task_result(state["task_id"], response)
 
+    event_type = "done_escalated" if escalated else "done"
+    event_content = "QA could not verify the output after max revisions — delivered as-is" if escalated else "Task complete"
+
     return {
         "final_result": response,
         "status": "done",
-        "events": [{"type": "done", "agent": "writer", "content": "Task complete"}],
+        "events": [{"type": event_type, "agent": "writer", "content": event_content}],
     }
 
 
 # ── Routing ───────────────────────────────────────────────────
+
+def route_after_developer(state: AgentState) -> str:
+    if _workflow_config().get("skip_qa"):
+        return "writer"
+    return "qa"
+
 
 def route_after_qa(state: AgentState) -> str:
     if state["status"] == "done":
@@ -189,10 +218,6 @@ def route_after_qa(state: AgentState) -> str:
     if state["revision_count"] >= MAX_REVISIONS:
         return "writer"  # escalate — don't loop forever
     return "developer"
-
-
-def route_after_developer(state: AgentState) -> str:
-    return "qa"
 
 
 # ── Build graph ───────────────────────────────────────────────

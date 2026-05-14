@@ -40,7 +40,12 @@ STRICT rules for index.html:
 - Call read_file first if you need to check existing code before modifying it
 - No TODO comments — finish what you start
 - No placeholder implementations
-- After writing all files, write a brief "## Summary" listing what was written"""
+
+## Summary (required after every task)
+After writing all files, output a "## Summary" section that includes:
+- Which files were written
+- The exact before→after values for every change made (e.g. `background: #e0e7ff` → `background: #000000`)
+- This lets QA verify the change without needing raw file output"""
 
     @property
     def tools(self) -> list[dict]:

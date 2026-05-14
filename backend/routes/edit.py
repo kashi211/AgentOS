@@ -1,7 +1,10 @@
 import asyncio
 import os
+import re
 import shutil
 import uuid
+
+_UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -68,7 +71,8 @@ def _build_file_listing(output_dir: str) -> str:
     if not os.path.isdir(output_dir):
         return "(no files yet)"
     lines = []
-    for root, _, filenames in os.walk(output_dir):
+    for root, dirs, filenames in os.walk(output_dir):
+        dirs[:] = [d for d in dirs if not _UUID_RE.match(d)]
         for name in sorted(filenames):
             full = os.path.join(root, name)
             rel = os.path.relpath(full, output_dir)

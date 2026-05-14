@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     upstash_redis_token: str
     pinecone_api_key: str
     pinecone_index: str = "agentos-memory"
+    dev_mode: bool = False  # set DEV_MODE=true to use Haiku for all agents
     r2_account_id: str = ""
     r2_access_key_id: str = ""
     r2_secret_access_key: str = ""

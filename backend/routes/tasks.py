@@ -2,16 +2,28 @@ import uuid
 import asyncio
 import os
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse, PlainTextResponse
 
 from db.connection import get_pool
 from models.task import TaskCreate, TaskOut
 from orchestrator.graph import build_graph
+from orchestrator.legal_graph import build_legal_graph
+from orchestrator.investment_graph import build_investment_graph
 from routes.ws import broadcast
 
 router = APIRouter()
 _graph = build_graph()
+_legal_graph = build_legal_graph()
+_investment_graph = build_investment_graph()
+
+
+def _get_graph(preset_id: str | None):
+    if preset_id == "legal-review":
+        return _legal_graph
+    if preset_id == "investment-analysis":
+        return _investment_graph
+    return _graph
 
 
 @router.post("/", status_code=202)
@@ -26,7 +38,7 @@ async def create_task(body: TaskCreate):
     task_id = str(row["id"])
 
     # Run the agent graph in the background
-    asyncio.create_task(_run_graph(task_id, body.goal))
+    asyncio.create_task(_run_graph(task_id, body.goal, preset_id=body.preset_id))
 
     return {"task_id": task_id, "status": "pending"}
 
@@ -90,27 +102,73 @@ async def get_task_file(task_id: str, file_path: str):
     return PlainTextResponse(content)
 
 
-async def _run_graph(task_id: str, goal: str, output_task_id: str | None = None):
-    initial_state = {
-        "task_id": task_id,
-        "output_task_id": output_task_id or task_id,
-        "goal": goal,
-        "plan": [],
-        "steps": [],
-        "current_step_idx": 0,
-        "agent_outputs": {},
-        "revision_count": 0,
-        "status": "pending",
-        "final_result": "",
-        "events": [],
-    }
+@router.put("/{task_id}/files/{file_path:path}")
+async def put_task_file(task_id: str, file_path: str, request: Request):
+    output_dir = os.path.join("output", task_id)
+    safe = os.path.realpath(os.path.join(output_dir, file_path))
+    root = os.path.realpath(output_dir)
+    if not safe.startswith(root + os.sep) and safe != root:
+        raise HTTPException(400, "Invalid path")
+    content = await request.body()
+    os.makedirs(os.path.dirname(safe), exist_ok=True)
+    with open(safe, "wb") as f:
+        f.write(content)
+    return {"saved": True, "path": file_path, "size": len(content)}
+
+
+async def _run_graph(task_id: str, goal: str, output_task_id: str | None = None, preset_id: str | None = None):
+    graph = _get_graph(preset_id)
+
+    if preset_id == "legal-review":
+        initial_state = {
+            "task_id": task_id,
+            "goal": goal,
+            "reader_output": "",
+            "flags_output": "",
+            "editor_output": "",
+            "checker_feedback": "",
+            "revision_count": 0,
+            "status": "pending",
+            "final_result": "",
+            "events": [],
+        }
+    elif preset_id == "investment-analysis":
+        initial_state = {
+            "task_id": task_id,
+            "goal": goal,
+            "analyst_output": "",
+            "bear_output": "",
+            "risk_feedback": "",
+            "synthesizer_output": "",
+            "revision_count": 0,
+            "status": "pending",
+            "final_result": "",
+            "events": [],
+        }
+    else:
+        initial_state = {
+            "task_id": task_id,
+            "output_task_id": output_task_id or task_id,
+            "goal": goal,
+            "plan": [],
+            "steps": [],
+            "current_step_idx": 0,
+            "agent_outputs": {},
+            "revision_count": 0,
+            "status": "pending",
+            "final_result": "",
+            "events": [],
+        }
 
     try:
-        async for chunk in _graph.astream(initial_state):
+        async for chunk in graph.astream(initial_state):
             for node_name, state_update in chunk.items():
                 for event in state_update.get("events", []):
                     await broadcast(task_id, {**event, "node": node_name})
     except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        print(f"[_run_graph ERROR] task={task_id} preset={preset_id}\n{tb}")
         await broadcast(task_id, {"type": "error", "agent": "system", "content": str(e)})
         pool = get_pool()
         async with pool.acquire() as conn:
