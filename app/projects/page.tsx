@@ -461,7 +461,7 @@ export default function ProjectsPage() {
   const isActive = (s: TaskStatus) => ["planning", "executing", "reviewing"].includes(s);
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="flex flex-col min-h-full">
 
       {/* ── Submission header ── */}
       <div className="px-4 sm:px-8 lg:px-10 pt-8 pb-4 border-b" style={{ borderColor: "var(--card-border)" }}>
@@ -530,10 +530,10 @@ export default function ProjectsPage() {
       </div>
 
       {/* ── Body ── */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1">
 
         {/* Task list */}
-        <div className="w-72 shrink-0 border-r overflow-y-auto" style={{ borderColor: "var(--card-border)", background: "#fafafa" }}>
+        <div className="w-72 shrink-0 border-r" style={{ borderColor: "var(--card-border)", background: "#fafafa" }}>
           <div className="p-3 flex items-center justify-between border-b" style={{ borderColor: "var(--card-border)" }}>
             <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--muted-light)" }}>
               {tasks.length} project{tasks.length !== 1 ? "s" : ""}
@@ -572,7 +572,7 @@ export default function ProjectsPage() {
                     </span>
                   )}
                 </div>
-                <p className="text-xs leading-snug line-clamp-2" style={{ color: active ? "var(--accent)" : "var(--foreground)" }}>{task.goal}</p>
+                <p className="text-xs leading-snug" style={{ color: active ? "var(--accent)" : "var(--foreground)" }}>{task.goal}</p>
                 <p className="text-xs mt-1" style={{ color: "var(--muted-light)" }}>{new Date(task.created_at).toLocaleTimeString()}</p>
               </button>
             );
@@ -580,7 +580,7 @@ export default function ProjectsPage() {
         </div>
 
         {/* Main panel */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 flex flex-col">
           {!selectedId ? (
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center max-w-sm px-6">
@@ -614,26 +614,28 @@ export default function ProjectsPage() {
           ) : (
             <>
               {/* Task header */}
-              <div className="px-6 py-3 border-b flex items-center gap-3" style={{ borderColor: "var(--card-border)" }}>
+              <div className="px-6 py-4 border-b" style={{ borderColor: "var(--card-border)" }}>
                 {selectedTask && (() => {
                   const cfg = STATUS_CONFIG[selectedTask.status] ?? STATUS_CONFIG.pending;
                   return (
                     <>
-                      {isActive(selectedTask.status) ? <Loader2 size={14} className="animate-spin" style={{ color: cfg.color }} /> : <div className="w-3 h-3 rounded-full" style={{ background: cfg.color }} />}
-                      <span className="text-xs font-semibold" style={{ color: cfg.color }}>{cfg.label}</span>
-                      {taskPreset && (
-                        <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: `${taskPreset.categoryColor}12`, color: taskPreset.categoryColor }}>
-                          {taskPreset.name}
-                        </span>
-                      )}
-                      <span className="text-sm font-medium truncate flex-1" style={{ color: "var(--foreground)" }}>{selectedTask.goal}</span>
+                      <div className="flex items-center gap-2 mb-2">
+                        {isActive(selectedTask.status) ? <Loader2 size={14} className="animate-spin" style={{ color: cfg.color }} /> : <div className="w-3 h-3 rounded-full shrink-0" style={{ background: cfg.color }} />}
+                        <span className="text-xs font-semibold" style={{ color: cfg.color }}>{cfg.label}</span>
+                        {taskPreset && (
+                          <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: `${taskPreset.categoryColor}12`, color: taskPreset.categoryColor }}>
+                            {taskPreset.name}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm font-medium leading-relaxed" style={{ color: "var(--foreground)" }}>{selectedTask.goal}</p>
                     </>
                   );
                 })()}
               </div>
 
               {/* Feed + delivery */}
-              <div ref={feedRef} className="flex-1 overflow-y-auto p-6 space-y-4">
+              <div ref={feedRef} className="p-6 space-y-4">
                 {loadingMessages ? (
                   <div className="flex justify-center pt-8"><Loader2 size={20} className="animate-spin" style={{ color: "var(--muted)" }} /></div>
                 ) : allMessages.length === 0 ? (
