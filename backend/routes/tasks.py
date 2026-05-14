@@ -10,12 +10,18 @@ from models.task import TaskCreate, TaskOut
 from orchestrator.graph import build_graph
 from orchestrator.legal_graph import build_legal_graph
 from orchestrator.investment_graph import build_investment_graph
+from orchestrator.research_graph import build_research_graph
+from orchestrator.content_graph import build_content_graph
+from orchestrator.academic_graph import build_academic_graph
 from routes.ws import broadcast
 
 router = APIRouter()
 _graph = build_graph()
 _legal_graph = build_legal_graph()
 _investment_graph = build_investment_graph()
+_research_graph = build_research_graph()
+_content_graph = build_content_graph()
+_academic_graph = build_academic_graph()
 
 
 def _get_graph(preset_id: str | None):
@@ -23,6 +29,12 @@ def _get_graph(preset_id: str | None):
         return _legal_graph
     if preset_id == "investment-analysis":
         return _investment_graph
+    if preset_id == "research-intelligence":
+        return _research_graph
+    if preset_id == "content-marketing":
+        return _content_graph
+    if preset_id == "academic-review":
+        return _academic_graph
     return _graph
 
 
@@ -140,6 +152,46 @@ async def _run_graph(task_id: str, goal: str, output_task_id: str | None = None,
             "bear_output": "",
             "risk_feedback": "",
             "synthesizer_output": "",
+            "revision_count": 0,
+            "status": "pending",
+            "final_result": "",
+            "events": [],
+        }
+    elif preset_id == "research-intelligence":
+        initial_state = {
+            "task_id": task_id,
+            "goal": goal,
+            "researcher_output": "",
+            "fact_check_output": "",
+            "devils_advocate_output": "",
+            "editor_output": "",
+            "fact_check_feedback": "",
+            "revision_count": 0,
+            "status": "pending",
+            "final_result": "",
+            "events": [],
+        }
+    elif preset_id == "content-marketing":
+        initial_state = {
+            "task_id": task_id,
+            "goal": goal,
+            "writer_output": "",
+            "seo_output": "",
+            "brand_output": "",
+            "editor_output": "",
+            "status": "pending",
+            "final_result": "",
+            "events": [],
+        }
+    elif preset_id == "academic-review":
+        initial_state = {
+            "task_id": task_id,
+            "goal": goal,
+            "summarizer_output": "",
+            "critic_output": "",
+            "synthesizer_output": "",
+            "citation_output": "",
+            "critic_feedback": "",
             "revision_count": 0,
             "status": "pending",
             "final_result": "",
