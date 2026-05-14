@@ -363,6 +363,7 @@ export default function ProjectsPage() {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [showPresetPicker, setShowPresetPicker] = useState(false);
   const [goalExpanded, setGoalExpanded] = useState(false);
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const feedRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
 
@@ -553,30 +554,53 @@ export default function ProjectsPage() {
             const active = task.id === selectedId;
             const tPreset = allPresets.find(p => p.id === task.preset_id);
             const PresetIco = tPreset ? (PRESET_ICONS[tPreset.id] ?? Layers) : FlaskConical;
+            const isLong = task.goal.length > 80;
+            const cardExpanded = expandedCards.has(task.id);
+            const displayGoal = isLong && !cardExpanded ? task.goal.slice(0, 80) + "…" : task.goal;
             return (
-              <button
+              <div
                 key={task.id}
-                onClick={() => selectTask(task.id)}
-                className="w-full text-left px-4 py-3 border-b transition-all"
+                className="w-full text-left px-4 py-3 border-b"
                 style={{ borderColor: "var(--card-border)", background: active ? "var(--accent-light)" : "transparent", borderLeft: active ? "3px solid var(--accent)" : "3px solid transparent" }}
               >
-                <div className="flex items-center gap-2 mb-1">
-                  {isActive(task.status)
-                    ? <Loader2 size={11} className="animate-spin" style={{ color: cfg.color }} />
-                    : task.status === "done" ? <CheckCircle2 size={11} style={{ color: cfg.color }} />
-                    : task.status === "failed" ? <XCircle size={11} style={{ color: cfg.color }} />
-                    : <Clock size={11} style={{ color: cfg.color }} />}
-                  <span className="text-xs font-semibold" style={{ color: cfg.color }}>{cfg.label}</span>
-                  {tPreset && (
-                    <span className="ml-auto flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full" style={{ background: `${tPreset.categoryColor}12`, color: tPreset.categoryColor }}>
-                      <PresetIco size={9} />
-                      <span style={{ fontSize: 9 }}>{tPreset.name.split(" ")[0]}</span>
-                    </span>
-                  )}
+                <div
+                  className="cursor-pointer"
+                  onClick={() => selectTask(task.id)}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    {isActive(task.status)
+                      ? <Loader2 size={11} className="animate-spin" style={{ color: cfg.color }} />
+                      : task.status === "done" ? <CheckCircle2 size={11} style={{ color: cfg.color }} />
+                      : task.status === "failed" ? <XCircle size={11} style={{ color: cfg.color }} />
+                      : <Clock size={11} style={{ color: cfg.color }} />}
+                    <span className="text-xs font-semibold" style={{ color: cfg.color }}>{cfg.label}</span>
+                    {tPreset && (
+                      <span className="ml-auto flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full" style={{ background: `${tPreset.categoryColor}12`, color: tPreset.categoryColor }}>
+                        <PresetIco size={9} />
+                        <span style={{ fontSize: 9 }}>{tPreset.name.split(" ")[0]}</span>
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs leading-snug" style={{ color: active ? "var(--accent)" : "var(--foreground)" }}>{displayGoal}</p>
                 </div>
-                <p className="text-xs leading-snug" style={{ color: active ? "var(--accent)" : "var(--foreground)" }}>{task.goal}</p>
+                {isLong && (
+                  <button
+                    onClick={e => {
+                      e.stopPropagation();
+                      setExpandedCards(prev => {
+                        const next = new Set(prev);
+                        cardExpanded ? next.delete(task.id) : next.add(task.id);
+                        return next;
+                      });
+                    }}
+                    className="text-xs mt-1 font-medium"
+                    style={{ color: "var(--accent)" }}
+                  >
+                    {cardExpanded ? "Show less" : "Show more"}
+                  </button>
+                )}
                 <p className="text-xs mt-1" style={{ color: "var(--muted-light)" }}>{new Date(task.created_at).toLocaleTimeString()}</p>
-              </button>
+              </div>
             );
           })}
         </div>
