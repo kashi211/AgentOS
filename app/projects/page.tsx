@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   Send, Loader2, CheckCircle2, XCircle, Clock, RefreshCw,
   ExternalLink, Code2, Search, TrendingUp, Scale, Megaphone,
-  BookOpen, Layers, Bot, FileText, TriangleAlert, ChevronDown,
+  BookOpen, Layers, Bot,
   BarChart3, ShieldCheck, FlaskConical, ScrollText, Lightbulb,
   ArrowRight, CircleDot,
 } from "lucide-react";
@@ -308,7 +308,7 @@ function DeliveryPanel({ task, messages, preset }: {
             ) : (
               <div className="text-center py-6">
                 <BarChart3 size={28} className="mx-auto mb-2" style={{ color: "var(--muted-light)" }} />
-                <p className="text-sm" style={{ color: "var(--muted)" }}>No QA/review data found in this task's messages.</p>
+                <p className="text-sm" style={{ color: "var(--muted)" }}>No QA/review data found in this task&apos;s messages.</p>
               </div>
             )}
           </div>
@@ -361,7 +361,6 @@ export default function ProjectsPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [liveEvents, setLiveEvents] = useState<Message[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
-  const [showPresetPicker, setShowPresetPicker] = useState(false);
   const [goalExpanded, setGoalExpanded] = useState(false);
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const feedRef = useRef<HTMLDivElement>(null);
@@ -377,7 +376,7 @@ export default function ProjectsPage() {
   }, []);
 
   useEffect(() => {
-    feedRef.current?.scrollTo({ top: feedRef.current.scrollHeight, behavior: "smooth" });
+    if (feedRef.current) feedRef.current.scrollTo({ top: feedRef.current.scrollHeight, behavior: "smooth" });
   }, [liveEvents, messages]);
 
   const fetchTasks = async () => {
@@ -441,7 +440,6 @@ export default function ProjectsPage() {
         const data = await res.json();
         const taskId = data.task_id;
         setGoal("");
-        setShowPresetPicker(false);
         await fetchTasks();
         // Attach preset_id locally since API may not persist it
         setTasks(prev => prev.map(t => t.id === taskId ? { ...t, preset_id: selectedPresetId } : t));
@@ -589,7 +587,7 @@ export default function ProjectsPage() {
                       e.stopPropagation();
                       setExpandedCards(prev => {
                         const next = new Set(prev);
-                        cardExpanded ? next.delete(task.id) : next.add(task.id);
+                        if (cardExpanded) next.delete(task.id); else next.add(task.id);
                         return next;
                       });
                     }}
