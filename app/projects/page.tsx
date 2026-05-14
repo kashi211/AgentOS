@@ -175,7 +175,8 @@ function DeliveryPanel({ task, messages, preset }: {
   const quality = extractQualityReport(messages);
   const [tab, setTab] = useState<"output" | "report">("output");
 
-  const isDevPreset = task.preset_id === "software-dev" || !task.preset_id;
+  const isDevPreset = task.preset_id === "software-dev" || !task.preset_id ||
+    (preset?.agents?.some(a => a.role.toLowerCase().includes("developer")) ?? false);
 
   return (
     <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid var(--card-border)" }}>
