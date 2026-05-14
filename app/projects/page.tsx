@@ -362,6 +362,7 @@ export default function ProjectsPage() {
   const [liveEvents, setLiveEvents] = useState<Message[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [showPresetPicker, setShowPresetPicker] = useState(false);
+  const [goalExpanded, setGoalExpanded] = useState(false);
   const feedRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
 
@@ -387,6 +388,7 @@ export default function ProjectsPage() {
 
   const selectTask = async (taskId: string) => {
     setSelectedId(taskId);
+    setGoalExpanded(false);
     setLiveEvents([]);
     setLoadingMessages(true);
     wsRef.current?.close();
@@ -617,6 +619,10 @@ export default function ProjectsPage() {
               <div className="px-6 py-4 border-b" style={{ borderColor: "var(--card-border)" }}>
                 {selectedTask && (() => {
                   const cfg = STATUS_CONFIG[selectedTask.status] ?? STATUS_CONFIG.pending;
+                  const isLong = selectedTask.goal.length > 160;
+                  const displayGoal = isLong && !goalExpanded
+                    ? selectedTask.goal.slice(0, 160) + "…"
+                    : selectedTask.goal;
                   return (
                     <>
                       <div className="flex items-center gap-2 mb-2">
@@ -628,7 +634,16 @@ export default function ProjectsPage() {
                           </span>
                         )}
                       </div>
-                      <p className="text-sm font-medium leading-relaxed" style={{ color: "var(--foreground)" }}>{selectedTask.goal}</p>
+                      <p className="text-sm font-medium leading-relaxed" style={{ color: "var(--foreground)" }}>{displayGoal}</p>
+                      {isLong && (
+                        <button
+                          onClick={() => setGoalExpanded(e => !e)}
+                          className="text-xs mt-1 font-medium"
+                          style={{ color: "var(--accent)" }}
+                        >
+                          {goalExpanded ? "Show less" : "Show more"}
+                        </button>
+                      )}
                     </>
                   );
                 })()}
