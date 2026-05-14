@@ -5,9 +5,9 @@ class Settings(BaseSettings):
     anthropic_api_key: str
     database_url: str
     database_url_unpooled: str
-    upstash_redis_url: str
-    upstash_redis_token: str
-    pinecone_api_key: str
+    upstash_redis_url: str = ""
+    upstash_redis_token: str = ""
+    pinecone_api_key: str = ""
     pinecone_index: str = "agentos-memory"
     dev_mode: bool = False  # set DEV_MODE=true to use Haiku for all agents
     r2_account_id: str = ""
