@@ -17,10 +17,13 @@ import {
 
 const nav = [
   { href: "/", label: "Home", icon: LayoutDashboard },
-  { href: "/architecture", label: "Architecture", icon: GitBranch },
-  { href: "/plan", label: "Dev Plan", icon: Map },
   { href: "/agents", label: "Agents", icon: Bot },
   { href: "/projects", label: "Projects", icon: ListTodo },
+];
+
+const secondaryNav = [
+  { href: "/architecture", label: "Architecture", icon: GitBranch },
+  { href: "/plan", label: "Dev Plan", icon: Map },
 ];
 
 function SidebarContent({ onClose }: { onClose?: () => void }) {
@@ -54,41 +57,54 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
         )}
       </div>
 
-      {/* Nav */}
+      {/* Primary Nav */}
       <nav className="flex-1 p-3 space-y-0.5">
         <p className="text-xs font-semibold px-3 py-2 uppercase tracking-widest" style={{ color: "var(--muted-light)" }}>
           Navigation
         </p>
         {nav.map(({ href, label, icon: Icon }) => {
-          const soon = false;
           const active = pathname === href;
           return (
             <Link
               key={href}
-              href={soon ? "#" : href}
+              href={href}
               onClick={onClose}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group relative"
+              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all"
               style={{
                 background: active ? "var(--accent-light)" : "transparent",
-                color: active ? "var(--accent)" : soon ? "var(--muted-light)" : "var(--muted)",
-                cursor: soon ? "default" : "pointer",
+                color: active ? "var(--accent)" : "var(--muted)",
               }}
             >
               <Icon size={16} className="shrink-0" />
               <span className="flex-1">{label}</span>
               {active && <ChevronRight size={14} style={{ color: "var(--accent)" }} />}
-              {soon && (
-                <span
-                  className="text-xs px-1.5 py-0.5 rounded-full"
-                  style={{ background: "var(--accent-light)", color: "var(--accent)", fontSize: "10px" }}
-                >
-                  Soon
-                </span>
-              )}
             </Link>
           );
         })}
       </nav>
+
+      {/* Secondary Nav */}
+      <div className="px-3 pb-2 space-y-0.5">
+        {secondaryNav.map(({ href, label, icon: Icon }) => {
+          const active = pathname === href;
+          return (
+            <Link
+              key={href}
+              href={href}
+              onClick={onClose}
+              className="flex items-center gap-2.5 px-3 py-1.5 rounded-md transition-all"
+              style={{
+                color: active ? "var(--accent)" : "var(--muted-light)",
+                background: active ? "var(--accent-light)" : "transparent",
+                fontSize: "12px",
+              }}
+            >
+              <Icon size={13} className="shrink-0" />
+              <span>{label}</span>
+            </Link>
+          );
+        })}
+      </div>
 
       {/* Footer */}
       <div className="p-4 border-t" style={{ borderColor: "var(--card-border)" }}>
