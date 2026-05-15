@@ -438,7 +438,7 @@ function ExpandableContent({ content, renderAs, thresholdChars = 1200 }: {
   );
 }
 
-function AgentDetail({ node, streamingToken }: { node: PipelineNode; streamingToken?: string }) {
+function AgentDetail({ node, streamingToken, agentDef }: { node: PipelineNode; streamingToken?: string; agentDef?: { description?: string; responsibilities?: string[] } }) {
   const [turn, setTurn] = useState(node.turns.length - 1);
   const color = agentColor(node.role);
 
@@ -500,6 +500,23 @@ function AgentDetail({ node, streamingToken }: { node: PipelineNode; streamingTo
                 {currentTurn.input.content.length.toLocaleString()} chars
               </span>
             </div>
+            {agentDef?.description && (
+              <div className="mb-3 px-3 py-2 rounded-lg text-xs leading-relaxed" style={{ background: "#fef9c3", border: "1px solid #fde68a", color: "#92400e" }}>
+                <span className="font-bold">Role: </span>{agentDef.description}
+              </div>
+            )}
+            {agentDef?.responsibilities && agentDef.responsibilities.length > 0 && (
+              <div className="mb-3">
+                <p className="text-xs font-bold mb-1.5" style={{ color: "#92400e" }}>Responsibilities</p>
+                <ul className="space-y-1">
+                  {agentDef.responsibilities.slice(0, 3).map((r, i) => (
+                    <li key={i} className="flex items-start gap-1.5 text-xs" style={{ color: "#78350f" }}>
+                      <span className="mt-0.5 shrink-0" style={{ color: "#d97706" }}>•</span>{r}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.6)", border: "1px solid #fde68a" }}>
               <ExpandableContent content={currentTurn.input.content} renderAs="mono" thresholdChars={500} />
             </div>
@@ -612,7 +629,7 @@ function DeliveryPanel({ task, messages, preset, fileCount }: { task: Task; mess
   const deliverable = extractDeliverable(messages);
   const quality = extractQualityReport(messages);
   const [tab, setTab] = useState<"output"|"report">("output");
-  const isDevPreset = (task.preset_id === "software-dev" || !task.preset_id || (preset?.agents?.some(a => a.role.toLowerCase().includes("developer")) ?? false)) && fileCount > 0;
+  const isDevPreset = (task.preset_id === "software-dev" || (!task.preset_id && (preset?.agents?.some(a => a.role.toLowerCase().includes("developer")) ?? false))) && fileCount > 0;
   return (
     <div className="mx-6 mb-6 mt-4 rounded-2xl overflow-hidden shrink-0" style={{ border: "1px solid var(--card-border)" }}>
       <div className="px-5 py-3 flex items-center justify-between flex-wrap gap-2" style={{ background: "var(--accent-light)", borderBottom: "1px solid rgba(79,70,229,0.15)" }}>
@@ -758,6 +775,17 @@ export default function ProjectsPage() {
     }
   };
 
+  const fetchMessages = async (taskId: string) => {
+    try {
+      const r = await fetch(`${API}/tasks/${taskId}`);
+      if (r.ok) {
+        const d = await r.json();
+        setMessages(d.messages ?? []);
+        setLiveEvents([]); // clear live events — DB has the full content now
+      }
+    } catch {}
+  };
+
   const fetchFileCount = async (taskId: string) => {
     try {
       const r = await fetch(`${API}/tasks/${taskId}/files`);
@@ -818,7 +846,7 @@ export default function ProjectsPage() {
       setTasks(prev => prev.map(t => {
         if (t.id !== taskId) return t;
         if (ev.type === "done" || ev.type === "done_escalated") {
-          setTimeout(() => { fetchTldr(taskId); fetchFileCount(taskId); }, 1500);
+          setTimeout(() => { fetchTldr(taskId); fetchFileCount(taskId); fetchMessages(taskId); }, 1500);
           return { ...t, status: "done" };
         }
         if (ev.type === "error") return { ...t, status: "failed" };
@@ -1072,7 +1100,7 @@ export default function ProjectsPage() {
 
                   {/* Agent detail pane — natural height, full content visible */}
                   {selectedNode ? (
-                    <AgentDetail node={selectedNode} streamingToken={streamingContent[selectedNode.role]} />
+                    <AgentDetail node={selectedNode} streamingToken={streamingContent[selectedNode.role]} agentDef={taskPreset?.agents?.find(a => a.role.toLowerCase().replace(/ /g,"_") === selectedNode.role)} />
                   ) : (
                     <div className="flex items-center justify-center py-16">
                       <p className="text-sm" style={{ color: "var(--muted)" }}>Click an agent in the pipeline above to inspect their input and output.</p>

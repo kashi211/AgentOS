@@ -62,14 +62,16 @@ async def create_task(body: TaskCreate, authorization: str = Header(None)):
     async with pool.acquire() as conn:
         if user_id:
             row = await conn.fetchrow(
-                "INSERT INTO tasks (goal, user_id) VALUES ($1, $2) RETURNING id, goal, status, created_at",
+                "INSERT INTO tasks (goal, preset_id, user_id) VALUES ($1, $2, $3) RETURNING id, goal, status, created_at",
                 body.goal,
+                body.preset_id,
                 uuid.UUID(user_id),
             )
         else:
             row = await conn.fetchrow(
-                "INSERT INTO tasks (goal) VALUES ($1) RETURNING id, goal, status, created_at",
+                "INSERT INTO tasks (goal, preset_id) VALUES ($1, $2) RETURNING id, goal, status, created_at",
                 body.goal,
+                body.preset_id,
             )
 
     task_id = str(row["id"])
@@ -124,6 +126,7 @@ async def get_task(task_id: str, authorization: str = Header(None)):
         "goal": task["goal"],
         "status": task["status"],
         "result": task["result"],
+        "preset_id": task["preset_id"],
         "created_at": task["created_at"].isoformat(),
         "subtasks": [dict(s) for s in subtasks],
         "messages": [dict(m) for m in messages],
@@ -137,14 +140,14 @@ async def list_tasks(authorization: str = Header(None)):
     async with pool.acquire() as conn:
         if user:
             rows = await conn.fetch(
-                "SELECT id, goal, status, created_at FROM tasks WHERE user_id=$1 ORDER BY created_at DESC LIMIT 50",
+                "SELECT id, goal, status, preset_id, created_at FROM tasks WHERE user_id=$1 ORDER BY created_at DESC LIMIT 50",
                 uuid.UUID(user["sub"]),
             )
         else:
             rows = await conn.fetch(
-                "SELECT id, goal, status, created_at FROM tasks ORDER BY created_at DESC LIMIT 50"
+                "SELECT id, goal, status, preset_id, created_at FROM tasks ORDER BY created_at DESC LIMIT 50"
             )
-    return [{"id": str(r["id"]), "goal": r["goal"], "status": r["status"], "created_at": r["created_at"].isoformat()} for r in rows]
+    return [{"id": str(r["id"]), "goal": r["goal"], "status": r["status"], "preset_id": r["preset_id"], "created_at": r["created_at"].isoformat()} for r in rows]
 
 
 @router.get("/{task_id}/files")
