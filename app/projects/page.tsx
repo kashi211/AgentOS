@@ -488,11 +488,11 @@ function AgentDetail({ node, streamingToken, agentDef }: { node: PipelineNode; s
       </div>
 
       {/* Split pane: INPUT left, OUTPUT right — natural height, page scrolls */}
-      <div className="flex" style={{ minHeight: 220 }}>
+      <div className="flex" style={{ maxHeight: "60vh", minHeight: 220 }}>
 
         {/* INPUT panel */}
         {currentTurn?.input ? (
-          <div className="w-2/5 shrink-0 p-5" style={{ borderRight: "1px solid var(--card-border)", background: "#fffbeb" }}>
+          <div className="w-2/5 shrink-0 p-5 overflow-y-auto" style={{ borderRight: "1px solid var(--card-border)", background: "#fffbeb" }}>
             <div className="flex items-center gap-2 mb-3">
               <ArrowDownRight size={11} style={{ color: "#92400e" }} />
               <span className="text-xs font-bold tracking-wider" style={{ color: "#92400e" }}>INPUT</span>
@@ -532,7 +532,7 @@ function AgentDetail({ node, streamingToken, agentDef }: { node: PipelineNode; s
         )}
 
         {/* OUTPUT panel */}
-        <div className="flex-1 p-5" style={{ background: "var(--card)" }}>
+        <div className="flex-1 p-5 overflow-y-auto" style={{ background: "var(--card)" }}>
           <div className="flex items-center gap-2 mb-3">
             <Bot size={11} style={{ color }} />
             <span className="text-xs font-bold tracking-wider" style={{ color }}>OUTPUT</span>
