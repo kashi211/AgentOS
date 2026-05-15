@@ -692,6 +692,8 @@ export default function ProjectsPage() {
   const [refineOpen, setRefineOpen] = useState(false);
   const [refineLoading, setRefineLoading] = useState(false);
   const [refineQuestions, setRefineQuestions] = useState<RefinementQuestion[]>([]);
+  const [tldr, setTldr] = useState<string | null>(null);
+  const [tldrLoading, setTldrLoading] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
@@ -716,15 +718,31 @@ export default function ProjectsPage() {
     try { const r = await fetch(`${API}/tasks/`); if (r.ok) setTasks(await r.json()); } catch {}
   };
 
+  const fetchTldr = async (taskId: string) => {
+    setTldr(null);
+    setTldrLoading(true);
+    try {
+      const r = await fetch(`${API}/tasks/${taskId}/summary`);
+      if (r.ok) { const d = await r.json(); setTldr(d.summary ?? null); }
+    } catch { /* silent */ }
+    finally { setTldrLoading(false); }
+  };
+
   const selectTask = async (taskId: string) => {
     setSelectedId(taskId);
     setLiveEvents([]);
     setSelectedAgent(null);
+    setTldr(null);
     setLoadingMessages(true);
     wsRef.current?.close();
     try {
       const r = await fetch(`${API}/tasks/${taskId}`);
-      if (r.ok) { const d = await r.json(); setMessages(d.messages ?? []); }
+      if (r.ok) {
+        const d = await r.json();
+        setMessages(d.messages ?? []);
+        // If already done, fetch TL;DR immediately
+        if (d.status === "done") fetchTldr(taskId);
+      }
     } finally { setLoadingMessages(false); }
 
     const ws = new WebSocket(`${WS}/ws/${taskId}`);
@@ -733,7 +751,11 @@ export default function ProjectsPage() {
       setLiveEvents(prev => [...prev, { id: `live-${Date.now()}`, agent_role: ev.agent, type: ev.type, content: ev.content, created_at: new Date().toISOString(), isLive: true }]);
       setTasks(prev => prev.map(t => {
         if (t.id !== taskId) return t;
-        if (ev.type === "done" || ev.type === "done_escalated") return { ...t, status: "done" };
+        if (ev.type === "done" || ev.type === "done_escalated") {
+          // Task just finished — fetch TL;DR after a short delay for DB to flush
+          setTimeout(() => fetchTldr(taskId), 1500);
+          return { ...t, status: "done" };
+        }
         if (ev.type === "error") return { ...t, status: "failed" };
         if (["ceo","analyst","researcher"].includes(ev.agent)) return { ...t, status: "planning" };
         if (["developer","content_writer","summarizer","bear_case"].includes(ev.agent)) return { ...t, status: "executing" };
@@ -950,6 +972,27 @@ export default function ProjectsPage() {
                       onSelect={role => setSelectedAgent(role)}
                     />
                   </div>
+
+                  {/* TL;DR summary — shown when task is done */}
+                  {(selectedTask?.status === "done" || tldrLoading) && (
+                    <div className="mx-6 mt-5">
+                      {tldrLoading ? (
+                        <div className="flex items-center gap-3 px-5 py-4 rounded-2xl" style={{ background: "var(--accent-light)", border: "1px solid rgba(79,70,229,0.15)" }}>
+                          <Loader2 size={15} className="animate-spin shrink-0" style={{ color: "var(--accent)" }} />
+                          <span className="text-sm" style={{ color: "var(--accent)" }}>Generating summary…</span>
+                        </div>
+                      ) : tldr ? (
+                        <div className="px-5 py-4 rounded-2xl" style={{ background: "var(--accent-light)", border: "1px solid rgba(79,70,229,0.15)" }}>
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-xs font-bold tracking-wider" style={{ color: "var(--accent)" }}>TL;DR</span>
+                            <div className="flex-1 h-px" style={{ background: "rgba(79,70,229,0.15)" }} />
+                          </div>
+                          <p className="text-sm leading-relaxed" style={{ color: "var(--foreground)" }}>{tldr}</p>
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
+
                   {/* Agent detail pane — natural height, full content visible */}
                   {selectedNode ? (
                     <AgentDetail node={selectedNode} />
