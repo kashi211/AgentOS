@@ -546,7 +546,13 @@ function PresetSelector({ presets, selected, onSelect }: { presets: Preset[]; se
 
 /* ─── Main page ──────────────────────────────────────────── */
 export default function ProjectsPage() {
-  const [allPresets, setAllPresets] = useState<Preset[]>(() => typeof window === "undefined" ? BUILTIN_PRESETS : [...BUILTIN_PRESETS, ...loadCustomPresets()]);
+  const [allPresets, setAllPresets] = useState<Preset[]>(() => {
+    if (typeof window === "undefined") return BUILTIN_PRESETS;
+    const builtinIds = new Set(BUILTIN_PRESETS.map(p => p.id));
+    const builtinNames = new Set(BUILTIN_PRESETS.map(p => p.name.toLowerCase()));
+    const custom = loadCustomPresets().filter(p => !builtinIds.has(p.id) && !builtinNames.has(p.name.toLowerCase()));
+    return [...BUILTIN_PRESETS, ...custom];
+  });
   const [selectedPresetId, setSelectedPresetId] = useState("software-dev");
   const [goal, setGoal] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -569,10 +575,10 @@ export default function ProjectsPage() {
     fetchPresetsFromAPI().then(remote => {
       if (!remote.length) return;
       const builtinIds = new Set(BUILTIN_PRESETS.map(p => p.id));
+      const builtinNames = new Set(BUILTIN_PRESETS.map(p => p.name.toLowerCase()));
       const local = loadCustomPresets();
-      // Exclude any remote/local preset whose id matches a built-in (avoids duplicates)
       const customOnly = [...remote, ...local.filter(p => !remote.find((r: Preset) => r.id === p.id))]
-        .filter(p => !builtinIds.has(p.id));
+        .filter(p => !builtinIds.has(p.id) && !builtinNames.has(p.name.toLowerCase()));
       saveCustomPresets(customOnly);
       setAllPresets([...BUILTIN_PRESETS, ...customOnly]);
     });

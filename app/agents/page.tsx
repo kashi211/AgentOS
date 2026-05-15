@@ -384,8 +384,9 @@ export default function AgentsPage() {
     fetchPresetsFromAPI().then(remote => {
       if (!remote.length) return;
       const builtinIds = new Set(BUILTIN_PRESETS.map(p => p.id));
+      const builtinNames = new Set(BUILTIN_PRESETS.map(p => p.name.toLowerCase()));
       const customOnly = [...remote, ...local.filter(p => !remote.find(r => r.id === p.id))]
-        .filter(p => !builtinIds.has(p.id));
+        .filter(p => !builtinIds.has(p.id) && !builtinNames.has(p.name.toLowerCase()));
       setCustomPresets(customOnly);
       saveCustomPresets(customOnly);
     });
