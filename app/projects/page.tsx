@@ -446,6 +446,8 @@ function AgentDetail({ node, streamingToken, agentDef }: { node: PipelineNode; s
   useEffect(() => { setTurn(node.turns.length - 1); }, [node.role, node.turns.length]);
 
   const currentTurn = node.turns[turn] ?? node.turns[0];
+  // For turns without their own input (e.g. revision turns), fall back to the first turn's input
+  const displayInput = currentTurn?.input ?? node.turns.find(t => t.input)?.input ?? null;
 
   return (
     <div className="border-t" style={{ borderColor: "var(--card-border)" }}>
@@ -491,13 +493,16 @@ function AgentDetail({ node, streamingToken, agentDef }: { node: PipelineNode; s
       <div className="flex" style={{ maxHeight: "60vh", minHeight: 220 }}>
 
         {/* INPUT panel */}
-        {currentTurn?.input ? (
+        {displayInput ? (
           <div className="w-2/5 shrink-0 p-5 overflow-y-auto" style={{ borderRight: "1px solid var(--card-border)", background: "#fffbeb" }}>
             <div className="flex items-center gap-2 mb-3">
               <ArrowDownRight size={11} style={{ color: "#92400e" }} />
               <span className="text-xs font-bold tracking-wider" style={{ color: "#92400e" }}>INPUT</span>
+              {!currentTurn?.input && (
+                <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: "#fef3c7", color: "#a16207", fontSize: 10 }}>Turn 1</span>
+              )}
               <span className="text-xs font-mono ml-auto px-2 py-0.5 rounded" style={{ background: "#fef3c7", color: "#a16207" }}>
-                {currentTurn.input.content.length.toLocaleString()} chars
+                {displayInput.content.length.toLocaleString()} chars
               </span>
             </div>
             {agentDef?.description && (
@@ -518,7 +523,7 @@ function AgentDetail({ node, streamingToken, agentDef }: { node: PipelineNode; s
               </div>
             )}
             <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.6)", border: "1px solid #fde68a" }}>
-              <ExpandableContent content={currentTurn.input.content} renderAs="mono" thresholdChars={500} />
+              <ExpandableContent content={displayInput.content} renderAs="mono" thresholdChars={500} />
             </div>
           </div>
         ) : (
