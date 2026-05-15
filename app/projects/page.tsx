@@ -834,6 +834,11 @@ export default function ProjectsPage() {
         return;
       }
 
+      // Auto-focus the agent that just started working
+      if (ev.type === "agent_input") {
+        setSelectedAgent(ev.agent);
+      }
+
       // When DB output arrives for a role, clear its streaming buffer
       if (ev.type === "agent_output") {
         setStreamingContent(prev => {
