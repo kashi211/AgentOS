@@ -669,9 +669,9 @@ export default function ProjectsPage() {
       </div>
 
       {/* ── Body ── */}
-      <div className="flex flex-1 min-h-0">
+      <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Task list */}
-        <div className="w-64 shrink-0 border-r flex flex-col" style={{ borderColor: "var(--card-border)", background: "#fafafa" }}>
+        <div className="w-64 shrink-0 border-r flex flex-col min-h-0" style={{ borderColor: "var(--card-border)", background: "#fafafa" }}>
           <div className="p-3 flex items-center justify-between border-b shrink-0" style={{ borderColor: "var(--card-border)" }}>
             <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--muted-light)" }}>{tasks.length} projects</span>
             <button onClick={fetchTasks} className="p-1 rounded" style={{ color: "var(--muted)" }}><RefreshCw size={13}/></button>
