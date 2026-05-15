@@ -1,4 +1,3 @@
-import asyncio
 import os
 from contextlib import asynccontextmanager
 
@@ -23,15 +22,11 @@ async def lifespan(app: FastAPI):
     await init_db()
 
     # Re-run any tasks that were interrupted by the previous server shutdown
-    from worker import recover_on_startup, background_poller
+    from worker import recover_on_startup
     await recover_on_startup()
-
-    # Start background poller that detects and re-runs stuck tasks
-    poller_task = asyncio.create_task(background_poller())
 
     yield
 
-    poller_task.cancel()
     await close_db()
 
 
