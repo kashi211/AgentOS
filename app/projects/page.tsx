@@ -556,7 +556,7 @@ function AgentDetail({ node, streamingToken, agentDef }: { node: PipelineNode; s
               </span>
             )}
           </div>
-          {currentTurn?.output && (!streamingToken || currentTurn.output.content.length >= streamingToken.length) ? (
+          {currentTurn?.output && !currentTurn.output.isLive && (!streamingToken || currentTurn.output.content.length >= streamingToken.length) ? (
             <div className="rounded-xl p-4" style={{ background: "var(--background, #fff)", border: "1px solid var(--card-border)" }}>
               <ExpandableContent content={currentTurn.output.content} renderAs="markdown" thresholdChars={600} />
             </div>
@@ -924,6 +924,21 @@ export default function ProjectsPage() {
   const filteredLive = liveEvents.filter(e => !rolesWithDbOutput.has(e.agent_role));
   const allMessages = [...messages, ...filteredLive];
   const pipeline = buildPipeline(allMessages);
+
+  // For built-in presets, agent_input WS events aren't emitted, so a streaming
+  // agent has no pipeline node yet (nodes only appear after agent_output fires).
+  // Synthesize a temporary node so the selected agent is visible during streaming.
+  const pipelineRoles = new Set(pipeline.map(n => n.role));
+  for (const role of Object.keys(streamingContent)) {
+    if (!pipelineRoles.has(role)) {
+      pipeline.push({
+        role,
+        turns: [{ turnIndex: 0, input: null, output: null }],
+        isActive: true,
+        hasFailed: false,
+      });
+    }
+  }
 
   // Auto-select last active node when pipeline populates (only if nothing is selected)
   useEffect(() => {
