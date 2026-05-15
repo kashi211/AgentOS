@@ -9,7 +9,7 @@ import {
   ArrowRight, CircleDot,
 } from "lucide-react";
 import Link from "next/link";
-import { BUILTIN_PRESETS, loadCustomPresets, loadActivePresetId, type Preset } from "@/lib/presets";
+import { BUILTIN_PRESETS, loadCustomPresets, saveCustomPresets, loadActivePresetId, fetchPresetsFromAPI, type Preset } from "@/lib/presets";
 
 /* ─── API config ─────────────────────────────────────────── */
 
@@ -349,7 +349,7 @@ function FeedMessage({ msg }: { msg: Message }) {
 /* ─── Main page ──────────────────────────────────────────── */
 
 export default function ProjectsPage() {
-  const [allPresets] = useState<Preset[]>(() => {
+  const [allPresets, setAllPresets] = useState<Preset[]>(() => {
     if (typeof window === "undefined") return BUILTIN_PRESETS;
     return [...BUILTIN_PRESETS, ...loadCustomPresets()];
   });
@@ -373,6 +373,14 @@ export default function ProjectsPage() {
     if (active) setSelectedPresetId(active);
     fetchTasks();
     const iv = setInterval(fetchTasks, 5000);
+    // Merge API custom presets (source of truth) into local state
+    fetchPresetsFromAPI().then(remote => {
+      if (!remote.length) return;
+      const local = loadCustomPresets();
+      const merged = [...remote, ...local.filter(p => !remote.find((r: Preset) => r.id === p.id))];
+      saveCustomPresets(merged);
+      setAllPresets([...BUILTIN_PRESETS, ...merged]);
+    });
     return () => clearInterval(iv);
   }, []);
 

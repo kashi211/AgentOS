@@ -10,6 +10,7 @@ from routes.tasks import router as tasks_router
 from routes.ws import router as ws_router
 from routes.run import router as run_router
 from routes.edit import router as edit_router
+from routes.presets import router as presets_router
 
 
 @asynccontextmanager
@@ -47,6 +48,7 @@ app.include_router(tasks_router, prefix="/tasks", tags=["tasks"])
 app.include_router(ws_router, prefix="/ws", tags=["websocket"])
 app.include_router(run_router, prefix="/tasks", tags=["run"])
 app.include_router(edit_router, prefix="/tasks", tags=["edit"])
+app.include_router(presets_router, prefix="/presets", tags=["presets"])
 
 app.mount("/output", StaticFiles(directory="output"), name="output")
 

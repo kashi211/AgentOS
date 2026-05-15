@@ -13,6 +13,7 @@ import {
 import {
   BUILTIN_PRESETS, loadCustomPresets, saveCustomPresets,
   loadActivePresetId, activatePreset,
+  fetchPresetsFromAPI, upsertPresetToAPI, deletePresetFromAPI,
   type Agent, type WorkflowLoop, type Workflow, type Preset,
 } from "@/lib/presets";
 
@@ -375,9 +376,18 @@ export default function AgentsPage() {
   useEffect(() => {
     setAgents(loadAgents());
     setWorkflow(loadWorkflow());
-    setCustomPresets(loadCustomPresets());
+    const local = loadCustomPresets();
+    setCustomPresets(local);
     setActivePresetId(loadActivePresetId());
     setMounted(true);
+    // Merge API presets (source of truth) into local state
+    fetchPresetsFromAPI().then(remote => {
+      if (!remote.length) return;
+      const localIds = new Set(local.map(p => p.id));
+      const merged = [...remote, ...local.filter(p => !remote.find(r => r.id === p.id))];
+      setCustomPresets(merged);
+      saveCustomPresets(merged);
+    });
   }, []);
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
@@ -417,6 +427,7 @@ export default function AgentsPage() {
     const updated = [forked, ...customPresets];
     setCustomPresets(updated);
     saveCustomPresets(updated);
+    upsertPresetToAPI(forked);
     showToast(`Forked "${preset.name}" — find it under Custom.`);
   };
 
@@ -424,6 +435,7 @@ export default function AgentsPage() {
     const updated = customPresets.filter(p => p.id !== id);
     setCustomPresets(updated);
     saveCustomPresets(updated);
+    deletePresetFromAPI(id);
     if (activePresetId === id) setActivePresetId(null);
   };
 
@@ -440,6 +452,7 @@ export default function AgentsPage() {
     const updated = [preset, ...customPresets];
     setCustomPresets(updated);
     saveCustomPresets(updated);
+    upsertPresetToAPI(preset);
     setSavePresetOpen(false);
     showToast(`Preset "${preset.name}" saved!`);
   };

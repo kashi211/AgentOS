@@ -345,6 +345,8 @@ export const BUILTIN_PRESETS: Preset[] = [
 
 /* ─── Storage helpers ────────────────────────────────────── */
 
+const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+
 export function loadCustomPresets(): Preset[] {
   try {
     const raw = localStorage.getItem(STORAGE_PRESETS);
@@ -365,4 +367,32 @@ export function activatePreset(preset: Preset): void {
   localStorage.setItem(STORAGE_AGENTS, JSON.stringify(preset.agents));
   localStorage.setItem(STORAGE_WORKFLOW, JSON.stringify(preset.workflow));
   localStorage.setItem(STORAGE_ACTIVE, preset.id);
+}
+
+/* ─── API sync ───────────────────────────────────────────── */
+
+export async function fetchPresetsFromAPI(): Promise<Preset[]> {
+  try {
+    const res = await fetch(`${API}/presets/`);
+    if (!res.ok) return [];
+    return await res.json();
+  } catch {
+    return [];
+  }
+}
+
+export async function upsertPresetToAPI(preset: Preset): Promise<void> {
+  try {
+    await fetch(`${API}/presets/${preset.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ data: preset }),
+    });
+  } catch {}
+}
+
+export async function deletePresetFromAPI(id: string): Promise<void> {
+  try {
+    await fetch(`${API}/presets/${id}`, { method: "DELETE" });
+  } catch {}
 }
