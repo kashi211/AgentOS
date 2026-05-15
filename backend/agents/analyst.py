@@ -20,3 +20,5 @@ Given a company, asset, or investment question, produce:
 7. VALUATION FRAMEWORK — Relevant multiples, DCF assumptions, comparable companies
 
 Be data-driven. Reference specific metrics where possible. This analysis will be challenged by a bear case agent."""
+
+

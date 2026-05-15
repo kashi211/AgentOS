@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     r2_bucket_name: str = "agentos-artefacts"
     next_public_r2_public_url: str = ""
     jwt_secret: str = "dev-secret-change-in-production-32x"
+    serper_api_key: str = ""  # https://serper.dev — add key to enable web search
 
     class Config:
         env_file = ".env"

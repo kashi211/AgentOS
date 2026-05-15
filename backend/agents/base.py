@@ -163,8 +163,130 @@ class BaseAgent(ABC):
             return await handler(**input)
         return f"Tool '{name}' not implemented"
 
+    # ── Built-in tool: web_search (Serper) ────────────────────
+    @staticmethod
+    def _web_search_tool_def() -> dict:
+        return {
+            "name": "web_search",
+            "description": (
+                "Search the web for current information, news, prices, events, or any data "
+                "not available in training knowledge. Use this for anything time-sensitive."
+            ),
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "The search query",
+                    },
+                    "num_results": {
+                        "type": "integer",
+                        "description": "Number of results to return (default 5, max 10)",
+                        "default": 5,
+                    },
+                },
+                "required": ["query"],
+            },
+        }
+
+    async def tool_web_search(self, query: str, num_results: int = 5) -> str:
+        """Hit Serper and return formatted search results."""
+        from config import settings
+        import urllib.request
+
+        if not settings.serper_api_key:
+            return "Web search is not configured. Add SERPER_API_KEY to the environment."
+
+        num_results = min(max(1, num_results), 10)
+        payload = json.dumps({"q": query, "num": num_results}).encode()
+        req = urllib.request.Request(
+            "https://google.serper.dev/search",
+            data=payload,
+            headers={
+                "X-API-KEY": settings.serper_api_key,
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read())
+        except Exception as e:
+            return f"Web search failed: {e}"
+
+        lines: list[str] = [f'Search results for: "{query}"\n']
+
+        # Answer box
+        if ab := data.get("answerBox"):
+            lines.append(f"[Answer] {ab.get('answer') or ab.get('snippet', '')}\n")
+
+        # Organic results
+        for i, r in enumerate(data.get("organic", [])[:num_results], 1):
+            lines.append(f"{i}. {r.get('title', '')}")
+            lines.append(f"   {r.get('snippet', '')}")
+            lines.append(f"   {r.get('link', '')}\n")
+
+        # Top news if present
+        for n in data.get("news", [])[:3]:
+            lines.append(f"[News] {n.get('title', '')} — {n.get('date', '')}")
+            lines.append(f"   {n.get('snippet', '')}")
+            lines.append(f"   {n.get('link', '')}\n")
+
+        return "\n".join(lines)
+
     def parse_json(self, text: str) -> dict | list:
         """Extract JSON from a response that may contain prose."""
         start = text.find("{") if "{" in text else text.find("[")
         end = text.rfind("}") + 1 if "}" in text else text.rfind("]") + 1
         return json.loads(text[start:end])
+
+
+async def fetch_web_context(query: str, num_results: int = 5) -> str:
+    """Call Serper and return formatted search results as a context string.
+    Returns an empty string if serper_api_key is not configured or the request fails.
+    """
+    import urllib.request as _urlreq
+
+    if not settings.serper_api_key:
+        return ""
+
+    num_results = min(max(1, num_results), 10)
+    payload = json.dumps({"q": query, "num": num_results}).encode()
+    req = _urlreq.Request(
+        "https://google.serper.dev/search",
+        data=payload,
+        headers={
+            "X-API-KEY": settings.serper_api_key,
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        import asyncio
+        loop = asyncio.get_event_loop()
+
+        def _do_request():
+            with _urlreq.urlopen(req, timeout=10) as resp:
+                return json.loads(resp.read())
+
+        data = await loop.run_in_executor(None, _do_request)
+    except Exception as e:
+        print(f"[web_context] Serper request failed: {e}")
+        return ""
+
+    lines: list[str] = [f'## Current Web Context (as of today)\nSearch: "{query}"\n']
+
+    if ab := data.get("answerBox"):
+        lines.append(f"**Quick answer:** {ab.get('answer') or ab.get('snippet', '')}\n")
+
+    for i, r in enumerate(data.get("organic", [])[:num_results], 1):
+        lines.append(f"{i}. **{r.get('title', '')}**")
+        lines.append(f"   {r.get('snippet', '')}")
+        lines.append(f"   Source: {r.get('link', '')}\n")
+
+    for n in data.get("news", [])[:3]:
+        lines.append(f"[News] **{n.get('title', '')}** — {n.get('date', '')}")
+        lines.append(f"   {n.get('snippet', '')}")
+        lines.append(f"   Source: {n.get('link', '')}\n")
+
+    return "\n".join(lines)

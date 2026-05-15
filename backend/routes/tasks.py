@@ -85,7 +85,7 @@ async def create_task(body: TaskCreate, authorization: str = Header(None)):
     register_stream(task_id, _stream_cb)
 
     # Run the agent graph in the background
-    bg_task = asyncio.create_task(_run_graph(task_id, body.goal, preset_id=body.preset_id))
+    bg_task = asyncio.create_task(_run_graph(task_id, body.goal, preset_id=body.preset_id, web_search=body.web_search))
     _running_tasks[task_id] = bg_task
 
     return {"task_id": task_id, "status": "pending"}
@@ -174,7 +174,18 @@ async def put_task_file(task_id: str, file_path: str, request: Request):
     return {"saved": True, "path": file_path, "size": len(body), "result": result}
 
 
-async def _run_graph(task_id: str, goal: str, output_task_id: str | None = None, preset_id: str | None = None):
+async def _run_graph(task_id: str, goal: str, output_task_id: str | None = None, preset_id: str | None = None, web_search: bool = False):
+    # ── Optionally enrich goal with live web context ───────────────
+    if web_search:
+        try:
+            from agents.base import fetch_web_context
+            web_ctx = await fetch_web_context(goal[:300])
+            if web_ctx:
+                goal = web_ctx + "\n\n---\n\n## Task\n" + goal
+                print(f"[web_search] Injected web context for task {task_id}")
+        except Exception as e:
+            print(f"[web_search] Failed to fetch context: {e}")
+
     # ── Custom preset: fetch from DB and run dynamically ──────────
     _builtin_ids = {"software-dev", "legal-review", "investment-analysis",
                     "research-intelligence", "content-marketing", "academic-review"}

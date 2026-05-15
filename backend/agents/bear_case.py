@@ -20,3 +20,5 @@ Given the bull case analysis, systematically challenge every assumption:
 7. WHAT THE BULLS ARE MISSING — The one or two things the market is not pricing in
 
 Be specific and brutal. Vague concerns are useless — give concrete scenarios with estimated probability and impact. The synthesizer will weigh your case against the bull case."""
+
+

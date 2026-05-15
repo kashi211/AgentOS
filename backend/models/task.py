@@ -8,6 +8,7 @@ from pydantic import BaseModel
 class TaskCreate(BaseModel):
     goal: str
     preset_id: str | None = None
+    web_search: bool = False
 
 
 class SubtaskOut(BaseModel):

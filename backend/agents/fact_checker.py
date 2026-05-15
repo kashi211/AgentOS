@@ -24,3 +24,5 @@ Then respond with valid JSON:
 }
 
 Score 8+ means the research is solid enough to proceed. passed=true requires score >= 8 and unverified_count <= 2."""
+
+

@@ -710,6 +710,7 @@ export default function ProjectsPage() {
   const [selectedPresetId, setSelectedPresetId] = useState("software-dev");
   const [goal, setGoal] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [webSearch, setWebSearch] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -890,7 +891,7 @@ export default function ProjectsPage() {
     setSubmitting(true);
     const enrichedGoal = buildEnrichedGoal(goal.trim(), questions, answers);
     try {
-      const r = await fetch(`${API}/tasks/`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ goal: enrichedGoal, preset_id: selectedPresetId }) });
+      const r = await fetch(`${API}/tasks/`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ goal: enrichedGoal, preset_id: selectedPresetId, web_search: webSearch }) });
       if (r.ok) {
         const d = await r.json();
         setGoal("");
@@ -972,10 +973,16 @@ export default function ProjectsPage() {
             placeholder={selectedPresetId === "investment-analysis" ? 'e.g. "Analyse the investment case for SpaceX"' : selectedPresetId === "software-dev" ? 'e.g. "Build a calculator web app"' : 'Describe what you want your agents to do…'}
             value={goal} rows={1} onChange={e => setGoal(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submitTask(); } }}
           />
-          <button onClick={submitTask} disabled={!goal.trim() || submitting} className="px-4 py-3 rounded-xl text-sm font-semibold text-white flex items-center gap-2 shrink-0 disabled:opacity-50" style={{ background: selectedPreset?.categoryColor ?? "var(--accent)" }}>
-            {submitting ? <Loader2 size={16} className="animate-spin"/> : <Send size={16}/>}
-            {submitting ? "Starting…" : "Run"}
-          </button>
+          <div className="flex flex-col items-end gap-1.5 shrink-0">
+            <button onClick={submitTask} disabled={!goal.trim() || submitting} className="px-4 py-3 rounded-xl text-sm font-semibold text-white flex items-center gap-2 disabled:opacity-50" style={{ background: selectedPreset?.categoryColor ?? "var(--accent)" }}>
+              {submitting ? <Loader2 size={16} className="animate-spin"/> : <Send size={16}/>}
+              {submitting ? "Starting…" : "Run"}
+            </button>
+            <label className="flex items-center gap-1.5 cursor-pointer select-none" title="Fetch live web search results and inject as context before running agents">
+              <input type="checkbox" checked={webSearch} onChange={e => setWebSearch(e.target.checked)} className="rounded" style={{ accentColor: selectedPreset?.categoryColor ?? "var(--accent)", width: 13, height: 13 }} />
+              <span className="text-xs" style={{ color: "var(--muted)" }}>Web search</span>
+            </label>
+          </div>
         </div>
       </div>
 
