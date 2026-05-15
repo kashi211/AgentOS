@@ -62,16 +62,18 @@ async def create_task(body: TaskCreate, authorization: str = Header(None)):
     async with pool.acquire() as conn:
         if user_id:
             row = await conn.fetchrow(
-                "INSERT INTO tasks (goal, preset_id, user_id) VALUES ($1, $2, $3) RETURNING id, goal, status, created_at",
+                "INSERT INTO tasks (goal, preset_id, web_search, user_id) VALUES ($1, $2, $3, $4) RETURNING id, goal, status, created_at",
                 body.goal,
                 body.preset_id,
+                body.web_search,
                 uuid.UUID(user_id),
             )
         else:
             row = await conn.fetchrow(
-                "INSERT INTO tasks (goal, preset_id) VALUES ($1, $2) RETURNING id, goal, status, created_at",
+                "INSERT INTO tasks (goal, preset_id, web_search) VALUES ($1, $2, $3) RETURNING id, goal, status, created_at",
                 body.goal,
                 body.preset_id,
+                body.web_search,
             )
 
     task_id = str(row["id"])

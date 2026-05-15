@@ -1,3 +1,4 @@
+import asyncio
 import os
 from contextlib import asynccontextmanager
 
@@ -20,20 +21,18 @@ from routes.auth import router as auth_router
 async def lifespan(app: FastAPI):
     os.makedirs("output", exist_ok=True)
     await init_db()
-    await _reset_orphaned_tasks()
+
+    # Re-run any tasks that were interrupted by the previous server shutdown
+    from worker import recover_on_startup, background_poller
+    await recover_on_startup()
+
+    # Start background poller that detects and re-runs stuck tasks
+    poller_task = asyncio.create_task(background_poller())
+
     yield
+
+    poller_task.cancel()
     await close_db()
-
-
-async def _reset_orphaned_tasks():
-    from db.connection import get_pool
-    pool = get_pool()
-    async with pool.acquire() as conn:
-        count = await conn.execute(
-            "UPDATE tasks SET status='failed', updated_at=NOW() "
-            "WHERE status IN ('pending', 'planning', 'executing', 'reviewing')"
-        )
-    print(f"[startup] reset orphaned tasks: {count}")
 
 
 app = FastAPI(title="AgentOS API", version="0.1.0", lifespan=lifespan)
