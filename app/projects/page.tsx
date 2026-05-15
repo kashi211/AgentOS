@@ -736,6 +736,7 @@ export default function ProjectsPage() {
   const [cancelling, setCancelling] = useState(false);
   const [taskFileCount, setTaskFileCount] = useState<number>(0);
   const wsRef = useRef<WebSocket | null>(null);
+  const autoFocusedAgentRef = useRef<string | null>(null);
 
   useEffect(() => {
     const active = loadActivePresetId();
@@ -809,6 +810,7 @@ export default function ProjectsPage() {
     setTldr(null);
     setStreamingContent({});
     setCancelling(false);
+    autoFocusedAgentRef.current = null;
     setTaskFileCount(0);
     setLoadingMessages(true);
     wsRef.current?.close();
@@ -828,19 +830,25 @@ export default function ProjectsPage() {
     ws.onmessage = e => {
       const ev: LiveEvent = JSON.parse(e.data);
 
-      // Handle streaming tokens — also auto-focus the active agent
+      // Handle streaming tokens — auto-focus only when a NEW agent starts
       if (ev.type === "token") {
         setStreamingContent(prev => ({
           ...prev,
           [ev.agent]: (prev[ev.agent] ?? "") + ev.content,
         }));
-        setSelectedAgent(ev.agent);
+        if (ev.agent !== autoFocusedAgentRef.current) {
+          autoFocusedAgentRef.current = ev.agent;
+          setSelectedAgent(ev.agent);
+        }
         return;
       }
 
-      // Auto-focus the agent that just started working
+      // Auto-focus the agent that just started working (custom presets)
       if (ev.type === "agent_input") {
-        setSelectedAgent(ev.agent);
+        if (ev.agent !== autoFocusedAgentRef.current) {
+          autoFocusedAgentRef.current = ev.agent;
+          setSelectedAgent(ev.agent);
+        }
       }
 
       // Don't clear streaming buffer on agent_output — the 300-char live preview
