@@ -10,13 +10,14 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { BUILTIN_PRESETS, loadCustomPresets, saveCustomPresets, loadActivePresetId, fetchPresetsFromAPI, type Preset } from "@/lib/presets";
+import { authHeaders } from "@/lib/auth";
 
 /* ─── API config ─────────────────────────────────────────── */
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 const WS  = process.env.NEXT_PUBLIC_WS_URL  ?? "ws://localhost:8000";
 
 /* ─── Types ──────────────────────────────────────────────── */
-type TaskStatus = "pending" | "planning" | "executing" | "reviewing" | "done" | "failed";
+type TaskStatus = "pending" | "planning" | "executing" | "reviewing" | "done" | "failed" | "cancelled";
 type ViewMode = "pipeline" | "raw";
 
 interface Task {
@@ -202,6 +203,7 @@ const STATUS_CFG: Record<TaskStatus, { label: string; color: string }> = {
   reviewing: { label: "Reviewing", color: "#d97706" },
   done:      { label: "Done",      color: "#059669" },
   failed:    { label: "Failed",    color: "#dc2626" },
+  cancelled: { label: "Cancelled", color: "#94a3b8" },
 };
 const isActive = (s: TaskStatus) => ["planning","executing","reviewing"].includes(s);
 
@@ -437,7 +439,7 @@ function ExpandableContent({ content, renderAs, thresholdChars = 1200 }: {
   );
 }
 
-function AgentDetail({ node }: { node: PipelineNode }) {
+function AgentDetail({ node, streamingToken }: { node: PipelineNode; streamingToken?: string }) {
   const [turn, setTurn] = useState(node.turns.length - 1);
   const color = agentColor(node.role);
 
@@ -523,10 +525,22 @@ function AgentDetail({ node }: { node: PipelineNode }) {
                 {currentTurn.output.content.length.toLocaleString()} chars
               </span>
             )}
+            {!currentTurn?.output && streamingToken && (
+              <span className="text-xs font-mono ml-auto px-2 py-0.5 rounded animate-pulse" style={{ background: `${color}12`, color }}>
+                streaming…
+              </span>
+            )}
           </div>
           {currentTurn?.output ? (
             <div className="rounded-xl p-4" style={{ background: "var(--background, #fff)", border: "1px solid var(--card-border)" }}>
               <ExpandableContent content={currentTurn.output.content} renderAs="markdown" thresholdChars={600} />
+            </div>
+          ) : streamingToken ? (
+            <div className="rounded-xl p-4" style={{ background: "var(--background, #fff)", border: `1px solid ${color}30` }}>
+              <pre className="text-xs font-mono leading-relaxed whitespace-pre-wrap break-words" style={{ color: "var(--foreground)" }}>
+                {streamingToken}
+                <span className="inline-block w-2 h-4 ml-0.5 align-middle animate-pulse" style={{ background: color }} />
+              </pre>
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center py-12 gap-3">
@@ -694,6 +708,8 @@ export default function ProjectsPage() {
   const [refineQuestions, setRefineQuestions] = useState<RefinementQuestion[]>([]);
   const [tldr, setTldr] = useState<string | null>(null);
   const [tldrLoading, setTldrLoading] = useState(false);
+  const [streamingContent, setStreamingContent] = useState<Record<string, string>>({});
+  const [cancelling, setCancelling] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
@@ -715,17 +731,34 @@ export default function ProjectsPage() {
   }, []);
 
   const fetchTasks = async () => {
-    try { const r = await fetch(`${API}/tasks/`); if (r.ok) setTasks(await r.json()); } catch {}
+    try {
+      const r = await fetch(`${API}/tasks/`, { headers: { ...authHeaders() } });
+      if (r.ok) setTasks(await r.json());
+    } catch {}
   };
 
   const fetchTldr = async (taskId: string) => {
     setTldr(null);
     setTldrLoading(true);
     try {
-      const r = await fetch(`${API}/tasks/${taskId}/summary`);
+      const r = await fetch(`${API}/tasks/${taskId}/summary`, { headers: { ...authHeaders() } });
       if (r.ok) { const d = await r.json(); setTldr(d.summary ?? null); }
     } catch { /* silent */ }
     finally { setTldrLoading(false); }
+  };
+
+  const cancelTask = async (taskId: string) => {
+    if (cancelling) return;
+    setCancelling(true);
+    try {
+      await fetch(`${API}/tasks/${taskId}/cancel`, {
+        method: "POST",
+        headers: { ...authHeaders() },
+      });
+      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: "cancelled" } : t));
+    } finally {
+      setCancelling(false);
+    }
   };
 
   const selectTask = async (taskId: string) => {
@@ -733,10 +766,12 @@ export default function ProjectsPage() {
     setLiveEvents([]);
     setSelectedAgent(null);
     setTldr(null);
+    setStreamingContent({});
+    setCancelling(false);
     setLoadingMessages(true);
     wsRef.current?.close();
     try {
-      const r = await fetch(`${API}/tasks/${taskId}`);
+      const r = await fetch(`${API}/tasks/${taskId}`, { headers: { ...authHeaders() } });
       if (r.ok) {
         const d = await r.json();
         setMessages(d.messages ?? []);
@@ -748,6 +783,30 @@ export default function ProjectsPage() {
     const ws = new WebSocket(`${WS}/ws/${taskId}`);
     ws.onmessage = e => {
       const ev: LiveEvent = JSON.parse(e.data);
+
+      // Handle streaming tokens
+      if (ev.type === "token") {
+        setStreamingContent(prev => ({
+          ...prev,
+          [ev.agent]: (prev[ev.agent] ?? "") + ev.content,
+        }));
+        return;
+      }
+
+      // When DB output arrives for a role, clear its streaming buffer
+      if (ev.type === "agent_output") {
+        setStreamingContent(prev => {
+          const next = { ...prev };
+          delete next[ev.agent];
+          return next;
+        });
+      }
+
+      if (ev.type === "cancelled") {
+        setTasks(prev => prev.map(t => t.id !== taskId ? t : { ...t, status: "cancelled" }));
+        return;
+      }
+
       setLiveEvents(prev => [...prev, { id: `live-${Date.now()}`, agent_role: ev.agent, type: ev.type, content: ev.content, created_at: new Date().toISOString(), isLive: true }]);
       setTasks(prev => prev.map(t => {
         if (t.id !== taskId) return t;
@@ -775,7 +834,7 @@ export default function ProjectsPage() {
     try {
       const r = await fetch(`${API}/tasks/questions`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({ goal: goal.trim(), preset_id: selectedPresetId }),
       });
       if (r.ok) {
@@ -797,7 +856,7 @@ export default function ProjectsPage() {
     setSubmitting(true);
     const enrichedGoal = buildEnrichedGoal(goal.trim(), questions, answers);
     try {
-      const r = await fetch(`${API}/tasks/`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ goal: enrichedGoal, preset_id: selectedPresetId }) });
+      const r = await fetch(`${API}/tasks/`, { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ goal: enrichedGoal, preset_id: selectedPresetId }) });
       if (r.ok) {
         const d = await r.json();
         setGoal("");
@@ -947,6 +1006,18 @@ export default function ProjectsPage() {
                         <span className="text-sm font-medium truncate" style={{ color: "var(--foreground)" }}>
                           {selectedTask.goal.length > 80 ? selectedTask.goal.slice(0,80) + "…" : selectedTask.goal}
                         </span>
+                        {isActive(selectedTask.status) && (
+                          <button
+                            onClick={() => cancelTask(selectedTask.id)}
+                            disabled={cancelling}
+                            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all disabled:opacity-50 ml-1"
+                            style={{ background: "#fee2e2", color: "#dc2626", border: "1px solid #fecaca" }}
+                            title="Cancel task"
+                          >
+                            {cancelling ? <Loader2 size={10} className="animate-spin"/> : <XCircle size={10}/>}
+                            Cancel
+                          </button>
+                        )}
                       </div>
                     );
                   })()}
@@ -995,7 +1066,7 @@ export default function ProjectsPage() {
 
                   {/* Agent detail pane — natural height, full content visible */}
                   {selectedNode ? (
-                    <AgentDetail node={selectedNode} />
+                    <AgentDetail node={selectedNode} streamingToken={streamingContent[selectedNode.role]} />
                   ) : (
                     <div className="flex items-center justify-center py-16">
                       <p className="text-sm" style={{ color: "var(--muted)" }}>Click an agent in the pipeline above to inspect their input and output.</p>

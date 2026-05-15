@@ -62,30 +62,68 @@ class BaseAgent(ABC):
         # Load short-term context from Redis
         context = await self.memory.get_context(self.role)
         active_prompt = self._custom_system_prompt or self.system_prompt
+
+        # Retrieve long-term memories from Pinecone
+        memory_context = ""
+        try:
+            from memory.long_term import retrieve_memories
+            memories = await retrieve_memories(user_message[:500], exclude_task_id=self.task_id)
+            if memories:
+                memory_context = "\n\n## Relevant past work\n" + "\n".join(memories)
+        except Exception as e:
+            print(f"[pinecone] retrieve error (silent): {e}")
+
         system = [
             {
                 "type": "text",
-                "text": active_prompt + (f"\n\n## Recent context\n{context}" if context else ""),
+                "text": active_prompt
+                    + (f"\n\n## Recent context\n{context}" if context else "")
+                    + memory_context,
                 "cache_control": {"type": "ephemeral"},
             }
         ]
 
         text_parts: list[str] = []
 
-        # Proper agentic tool-use loop: keep going until stop_reason != "tool_use"
-        while True:
-            response = await client.messages.create(
-                model=self.model,
-                max_tokens=self.max_tokens,
-                system=system,
-                messages=self._conversation,
-                tools=self.tools if self.tools else anthropic.NOT_GIVEN,
-            )
+        # Import streaming registry
+        from streaming import get_stream_callback
+        stream_callback = get_stream_callback(self.task_id)
 
-            # Accumulate any text from this turn
-            for block in response.content:
-                if block.type == "text" and block.text.strip():
-                    text_parts.append(block.text)
+        # Proper agentic tool-use loop: keep going until stop_reason != "tool_use"
+        first_turn = True
+        while True:
+            if stream_callback and first_turn and not self.tools:
+                # Stream first text-only turn token by token
+                text_parts_current: list[str] = []
+                async with client.messages.stream(
+                    model=self.model,
+                    max_tokens=self.max_tokens,
+                    system=system,
+                    messages=self._conversation,
+                ) as stream:
+                    async for text in stream.text_stream:
+                        text_parts_current.append(text)
+                        try:
+                            await stream_callback(self.role, text)
+                        except Exception:
+                            pass
+                    response = await stream.get_final_message()
+                if "".join(text_parts_current).strip():
+                    text_parts.append("".join(text_parts_current))
+                first_turn = False
+            else:
+                response = await client.messages.create(
+                    model=self.model,
+                    max_tokens=self.max_tokens,
+                    system=system,
+                    messages=self._conversation,
+                    tools=self.tools if self.tools else anthropic.NOT_GIVEN,
+                )
+                # Accumulate any text from this turn
+                for block in response.content:
+                    if block.type == "text" and block.text.strip():
+                        text_parts.append(block.text)
+                first_turn = False
 
             # Append assistant turn to conversation history
             self._conversation.append({"role": "assistant", "content": response.content})
@@ -109,6 +147,14 @@ class BaseAgent(ABC):
         result = "\n".join(text_parts)
         # Persist to short-term memory
         await self.memory.save_context(self.role, f"[{self.role}] {result[:500]}")
+
+        # Store long-term memory in Pinecone
+        try:
+            from memory.long_term import store_memory
+            await store_memory(self.task_id, self.role, user_message[:200], result[:1500])
+        except Exception as e:
+            print(f"[pinecone] store error (silent): {e}")
+
         return result
 
     async def _call_tool(self, name: str, input: dict[str, Any]) -> str:

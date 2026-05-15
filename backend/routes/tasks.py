@@ -2,7 +2,7 @@ import uuid
 import asyncio
 import os
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Header
 from fastapi.responses import JSONResponse, PlainTextResponse
 
 from db.connection import get_pool
@@ -14,6 +14,7 @@ from orchestrator.research_graph import build_research_graph
 from orchestrator.content_graph import build_content_graph
 from orchestrator.academic_graph import build_academic_graph
 from routes.ws import broadcast
+from auth.jwt_utils import decode_token
 
 router = APIRouter()
 _graph = build_graph()
@@ -22,6 +23,20 @@ _investment_graph = build_investment_graph()
 _research_graph = build_research_graph()
 _content_graph = build_content_graph()
 _academic_graph = build_academic_graph()
+
+# Registry of running background asyncio tasks for cancellation
+_running_tasks: dict[str, asyncio.Task] = {}
+
+
+def _get_current_user(authorization: str | None) -> dict | None:
+    """Decode JWT from Authorization header. Returns None if missing/invalid."""
+    if not authorization or not authorization.startswith("Bearer "):
+        return None
+    token = authorization.split(" ", 1)[1]
+    try:
+        return decode_token(token)
+    except Exception:
+        return None
 
 
 def _get_graph(preset_id: str | None):
@@ -39,24 +54,62 @@ def _get_graph(preset_id: str | None):
 
 
 @router.post("/", status_code=202)
-async def create_task(body: TaskCreate):
+async def create_task(body: TaskCreate, authorization: str = Header(None)):
+    user = _get_current_user(authorization)
+    user_id = user["sub"] if user else None
+
     pool = get_pool()
     async with pool.acquire() as conn:
-        row = await conn.fetchrow(
-            "INSERT INTO tasks (goal) VALUES ($1) RETURNING id, goal, status, created_at",
-            body.goal,
-        )
+        if user_id:
+            row = await conn.fetchrow(
+                "INSERT INTO tasks (goal, user_id) VALUES ($1, $2) RETURNING id, goal, status, created_at",
+                body.goal,
+                uuid.UUID(user_id),
+            )
+        else:
+            row = await conn.fetchrow(
+                "INSERT INTO tasks (goal) VALUES ($1) RETURNING id, goal, status, created_at",
+                body.goal,
+            )
 
     task_id = str(row["id"])
 
+    # Register streaming callback before starting the task
+    from streaming import register_stream, unregister_stream
+
+    async def _stream_cb(role: str, token: str):
+        await broadcast(task_id, {"type": "token", "agent": role, "content": token})
+
+    register_stream(task_id, _stream_cb)
+
     # Run the agent graph in the background
-    asyncio.create_task(_run_graph(task_id, body.goal, preset_id=body.preset_id))
+    bg_task = asyncio.create_task(_run_graph(task_id, body.goal, preset_id=body.preset_id))
+    _running_tasks[task_id] = bg_task
 
     return {"task_id": task_id, "status": "pending"}
 
 
+@router.post("/{task_id}/cancel")
+async def cancel_task(task_id: str):
+    task = _running_tasks.pop(task_id, None)
+    if task and not task.done():
+        task.cancel()
+
+    from streaming import unregister_stream
+    unregister_stream(task_id)
+
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE tasks SET status='cancelled', updated_at=NOW() WHERE id=$1",
+            uuid.UUID(task_id),
+        )
+    await broadcast(task_id, {"type": "cancelled", "agent": "system", "content": "Task cancelled"})
+    return {"cancelled": True}
+
+
 @router.get("/{task_id}")
-async def get_task(task_id: str):
+async def get_task(task_id: str, authorization: str = Header(None)):
     pool = get_pool()
     async with pool.acquire() as conn:
         task = await conn.fetchrow("SELECT * FROM tasks WHERE id=$1", uuid.UUID(task_id))
@@ -78,54 +131,44 @@ async def get_task(task_id: str):
 
 
 @router.get("/")
-async def list_tasks():
+async def list_tasks(authorization: str = Header(None)):
+    user = _get_current_user(authorization)
     pool = get_pool()
     async with pool.acquire() as conn:
-        rows = await conn.fetch("SELECT id, goal, status, created_at FROM tasks ORDER BY created_at DESC LIMIT 50")
+        if user:
+            rows = await conn.fetch(
+                "SELECT id, goal, status, created_at FROM tasks WHERE user_id=$1 ORDER BY created_at DESC LIMIT 50",
+                uuid.UUID(user["sub"]),
+            )
+        else:
+            rows = await conn.fetch(
+                "SELECT id, goal, status, created_at FROM tasks ORDER BY created_at DESC LIMIT 50"
+            )
     return [{"id": str(r["id"]), "goal": r["goal"], "status": r["status"], "created_at": r["created_at"].isoformat()} for r in rows]
 
 
 @router.get("/{task_id}/files")
 async def list_task_files(task_id: str):
-    output_dir = os.path.join("output", task_id)
-    if not os.path.isdir(output_dir):
-        return []
-    files = []
-    for root, _, filenames in os.walk(output_dir):
-        for name in filenames:
-            full = os.path.join(root, name)
-            rel = os.path.relpath(full, output_dir)
-            size = os.path.getsize(full)
-            files.append({"path": rel, "size": size})
-    return sorted(files, key=lambda f: f["path"])
+    from storage.r2 import list_files
+    return list_files(task_id)
 
 
 @router.get("/{task_id}/files/{file_path:path}")
 async def get_task_file(task_id: str, file_path: str):
-    output_dir = os.path.join("output", task_id)
-    safe = os.path.realpath(os.path.join(output_dir, file_path))
-    root = os.path.realpath(output_dir)
-    if not safe.startswith(root + os.sep) and safe != root:
-        raise HTTPException(400, "Invalid path")
-    if not os.path.isfile(safe):
+    from storage.r2 import read_file
+    content = read_file(task_id, file_path)
+    if not content:
         raise HTTPException(404, "File not found")
-    with open(safe) as f:
-        content = f.read()
     return PlainTextResponse(content)
 
 
 @router.put("/{task_id}/files/{file_path:path}")
 async def put_task_file(task_id: str, file_path: str, request: Request):
-    output_dir = os.path.join("output", task_id)
-    safe = os.path.realpath(os.path.join(output_dir, file_path))
-    root = os.path.realpath(output_dir)
-    if not safe.startswith(root + os.sep) and safe != root:
-        raise HTTPException(400, "Invalid path")
-    content = await request.body()
-    os.makedirs(os.path.dirname(safe), exist_ok=True)
-    with open(safe, "wb") as f:
-        f.write(content)
-    return {"saved": True, "path": file_path, "size": len(content)}
+    from storage.r2 import write_file
+    body = await request.body()
+    content = body.decode("utf-8", errors="replace")
+    result = write_file(task_id, file_path, content)
+    return {"saved": True, "path": file_path, "size": len(body), "result": result}
 
 
 async def _run_graph(task_id: str, goal: str, output_task_id: str | None = None, preset_id: str | None = None):
@@ -217,6 +260,9 @@ async def _run_graph(task_id: str, goal: str, output_task_id: str | None = None,
             for node_name, state_update in chunk.items():
                 for event in state_update.get("events", []):
                     await broadcast(task_id, {**event, "node": node_name})
+    except asyncio.CancelledError:
+        # Task was cancelled — status already updated in cancel_task endpoint
+        pass
     except Exception as e:
         import traceback
         tb = traceback.format_exc()
@@ -228,3 +274,8 @@ async def _run_graph(task_id: str, goal: str, output_task_id: str | None = None,
                 "UPDATE tasks SET status='failed', updated_at=NOW() WHERE id=$1",
                 uuid.UUID(task_id),
             )
+    finally:
+        # Cleanup
+        _running_tasks.pop(task_id, None)
+        from streaming import unregister_stream
+        unregister_stream(task_id)

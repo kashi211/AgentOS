@@ -13,6 +13,7 @@ from routes.edit import router as edit_router
 from routes.presets import router as presets_router
 from routes.questions import router as questions_router
 from routes.summary import router as summary_router
+from routes.auth import router as auth_router
 
 
 @asynccontextmanager
@@ -45,6 +46,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth_router, prefix="/auth", tags=["auth"])
 app.include_router(tasks_router, prefix="/tasks", tags=["tasks"])
 app.include_router(ws_router, prefix="/ws", tags=["websocket"])
 app.include_router(run_router, prefix="/tasks", tags=["run"])

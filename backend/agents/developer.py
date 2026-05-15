@@ -73,26 +73,38 @@ After writing all files, output a "## Summary" section that includes:
                     "required": ["path", "content"],
                 },
             },
+            {
+                "name": "list_files",
+                "description": "List all files written so far for this task",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {},
+                    "required": [],
+                },
+            },
         ]
 
     async def tool_read_file(self, path: str) -> str:
-        import os
-        # Try path as-is first, then inside the project output dir
-        candidates = [path, os.path.join("output", self.output_task_id, path.lstrip("/"))]
-        for p in candidates:
-            try:
-                with open(p) as f:
-                    return f.read()
-            except FileNotFoundError:
-                continue
+        import re
+        # Strip any leading output/<uuid>/ prefix the model mistakenly adds
+        clean = re.sub(r"^output/[0-9a-f\-]+/", "", path.lstrip("/"))
+        from storage.r2 import read_file
+        content = read_file(self.output_task_id, clean)
+        if content:
+            return content
         return f"File not found: {path}"
 
     async def tool_write_file(self, path: str, content: str) -> str:
-        import os, re
+        import re
         # Strip any leading output/<uuid>/ prefix the model mistakenly adds
-        path = re.sub(r"^output/[0-9a-f\-]+/", "", path.lstrip("/"))
-        safe_path = os.path.join("output", self.output_task_id, path)
-        os.makedirs(os.path.dirname(safe_path) or ".", exist_ok=True)
-        with open(safe_path, "w") as f:
-            f.write(content)
-        return f"Written: {safe_path} ({len(content)} chars)"
+        clean = re.sub(r"^output/[0-9a-f\-]+/", "", path.lstrip("/"))
+        from storage.r2 import write_file
+        return write_file(self.output_task_id, clean, content)
+
+    async def tool_list_files(self) -> str:
+        from storage.r2 import list_files
+        import json
+        files = list_files(self.output_task_id)
+        if not files:
+            return "No files found."
+        return json.dumps(files, indent=2)

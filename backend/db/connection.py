@@ -81,4 +81,19 @@ CREATE TABLE IF NOT EXISTS custom_presets (
 CREATE INDEX IF NOT EXISTS idx_messages_task_id ON messages(task_id);
 CREATE INDEX IF NOT EXISTS idx_subtasks_task_id ON subtasks(task_id);
 CREATE INDEX IF NOT EXISTS idx_memory_task_agent ON memory(task_id, agent_role);
+
+CREATE TABLE IF NOT EXISTS users (
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email         TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    created_at    TIMESTAMPTZ DEFAULT NOW()
+);
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='tasks' AND column_name='user_id') THEN
+    ALTER TABLE tasks ADD COLUMN user_id UUID REFERENCES users(id);
+  END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_tasks_user_id ON tasks(user_id);
 """

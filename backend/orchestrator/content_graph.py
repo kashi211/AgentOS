@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import uuid
 from typing import Annotated
 
@@ -49,40 +50,49 @@ async def content_writer_node(state: ContentState) -> dict:
     }
 
 
-async def seo_agent_node(state: ContentState) -> dict:
+async def parallel_review_node(state: ContentState) -> dict:
+    """Run SEO agent and Brand Voice agent in parallel."""
     memory = MemoryStore(state["task_id"])
-    agent = SEOAgent(state["task_id"], memory)
-    prompt = (
-        f"Content topic: {state['goal']}\n\n"
-        f"Draft:\n\n{state['writer_output']}\n\n"
+
+    seo_agent = SEOAgent(state["task_id"], memory)
+    brand_agent = BrandVoiceAgent(state["task_id"], memory)
+
+    seo_prompt = (
+        f"Content topic: {state['goal']}\n\nDraft:\n\n{state['writer_output']}\n\n"
         "Optimize this content for search discoverability."
     )
-    await _save_message(state["task_id"], "seo_agent", "agent_input", prompt)
-    response = await agent.run(prompt)
-    await _save_message(state["task_id"], "seo_agent", "agent_output", response)
+    brand_prompt = (
+        f"Content topic: {state['goal']}\n\nDraft:\n\n{state['writer_output']}\n\n"
+        "Review tone, voice, and brand consistency."
+    )
+
+    # Save inputs in parallel
+    await asyncio.gather(
+        _save_message(state["task_id"], "seo_agent", "agent_input", seo_prompt),
+        _save_message(state["task_id"], "brand_voice", "agent_input", brand_prompt),
+    )
+
+    # Run agents in parallel
+    seo_resp, brand_resp = await asyncio.gather(
+        seo_agent.run(seo_prompt),
+        brand_agent.run(brand_prompt),
+    )
+
+    # Save outputs in parallel
+    await asyncio.gather(
+        _save_message(state["task_id"], "seo_agent", "agent_output", seo_resp),
+        _save_message(state["task_id"], "brand_voice", "agent_output", brand_resp),
+    )
+
     await _update_task_status(state["task_id"], "executing")
     return {
-        "seo_output": response,
+        "seo_output": seo_resp,
+        "brand_output": brand_resp,
         "status": "executing",
-        "events": [{"type": "agent_output", "agent": "seo_agent", "content": _preview(response)}],
-    }
-
-
-async def brand_voice_node(state: ContentState) -> dict:
-    memory = MemoryStore(state["task_id"])
-    agent = BrandVoiceAgent(state["task_id"], memory)
-    prompt = (
-        f"Content topic: {state['goal']}\n\n"
-        f"SEO-optimized draft:\n\n{state['seo_output']}\n\n"
-        "Review and correct the tone, voice, and brand consistency."
-    )
-    await _save_message(state["task_id"], "brand_voice", "agent_input", prompt)
-    response = await agent.run(prompt)
-    await _save_message(state["task_id"], "brand_voice", "agent_output", response)
-    return {
-        "brand_output": response,
-        "status": "reviewing",
-        "events": [{"type": "agent_output", "agent": "brand_voice", "content": _preview(response)}],
+        "events": [
+            {"type": "agent_output", "agent": "seo_agent", "content": _preview(seo_resp)},
+            {"type": "agent_output", "agent": "brand_voice", "content": _preview(brand_resp)},
+        ],
     }
 
 
@@ -91,8 +101,10 @@ async def content_editor_node(state: ContentState) -> dict:
     agent = ContentEditorAgent(state["task_id"], memory)
     prompt = (
         f"Content topic: {state['goal']}\n\n"
-        f"Brand-reviewed draft:\n\n{state['brand_output']}\n\n"
-        "Tighten into the final publish-ready version."
+        f"Original draft:\n\n{state['writer_output']}\n\n"
+        f"SEO recommendations:\n\n{state['seo_output']}\n\n"
+        f"Brand voice review:\n\n{state['brand_output']}\n\n"
+        "Incorporate the SEO and brand voice feedback into the final publish-ready version."
     )
     await _save_message(state["task_id"], "content_editor", "agent_input", prompt)
     response = await agent.run(prompt)
@@ -111,14 +123,12 @@ def build_content_graph() -> StateGraph:
     graph = StateGraph(ContentState)
 
     graph.add_node("content_writer", content_writer_node)
-    graph.add_node("seo_agent", seo_agent_node)
-    graph.add_node("brand_voice", brand_voice_node)
+    graph.add_node("parallel_review", parallel_review_node)
     graph.add_node("content_editor", content_editor_node)
 
     graph.set_entry_point("content_writer")
-    graph.add_edge("content_writer", "seo_agent")
-    graph.add_edge("seo_agent", "brand_voice")
-    graph.add_edge("brand_voice", "content_editor")
+    graph.add_edge("content_writer", "parallel_review")
+    graph.add_edge("parallel_review", "content_editor")
     graph.add_edge("content_editor", END)
 
     return graph.compile()

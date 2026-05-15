@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     r2_secret_access_key: str = ""
     r2_bucket_name: str = "agentos-artefacts"
     next_public_r2_public_url: str = ""
+    jwt_secret: str = "dev-secret-change-in-production"
 
     class Config:
         env_file = ".env"
