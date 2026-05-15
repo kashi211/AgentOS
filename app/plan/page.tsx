@@ -25,7 +25,7 @@ const phases: Phase[] = [
     color: "#4f46e5",
     status: "done",
     tasks: [
-      { name: "Next.js 14 App Router + TypeScript + Tailwind", status: "done" },
+      { name: "Next.js 15 App Router + TypeScript + Tailwind", status: "done" },
       { name: "Global layout, sidebar navigation, light theme", status: "done" },
       { name: "FastAPI backend with health + CORS + WebSocket", status: "done" },
       { name: "PostgreSQL schema: tasks, messages, subtasks, memory", status: "done" },
@@ -39,12 +39,12 @@ const phases: Phase[] = [
     color: "#7c3aed",
     status: "done",
     tasks: [
-      { name: "BaseAgent class: system prompt, tool use loop, memory", status: "done" },
+      { name: "BaseAgent: system prompt, tool-use loop, memory integration", status: "done" },
       { name: "Software dev pipeline: CEO → Planner → Developer → QA → Writer", status: "done" },
-      { name: "LangGraph StateGraph orchestration with conditional routing", status: "done" },
-      { name: "QA feedback loops with max revision limits", status: "done" },
+      { name: "LangGraph StateGraph with conditional routing and revision loops", status: "done" },
+      { name: "QA feedback loops with configurable max revision limits", status: "done" },
       { name: "Redis short-term memory (graceful fallback if unavailable)", status: "done" },
-      { name: "File output per task (read_file / write_file tools)", status: "done" },
+      { name: "Developer file tools: read_file, write_file, list_files", status: "done" },
     ],
   },
   {
@@ -54,11 +54,11 @@ const phases: Phase[] = [
     color: "#0284c7",
     status: "done",
     tasks: [
-      { name: "Investment analysis: Analyst → Bear Case → Synthesizer → Risk Agent", status: "done" },
-      { name: "Legal review: Reader → Clause Flagger → Legal Editor → Protection Checker", status: "done" },
-      { name: "Research & Intelligence: Researcher → Fact Checker → Devil's Advocate → Editor", status: "done" },
-      { name: "Content & Marketing: Writer → SEO → Brand Voice → Editor", status: "done" },
-      { name: "Academic review: Summarizer → Critic → Synthesizer → Citation Agent", status: "done" },
+      { name: "Investment analysis: Analyst → Bear Case → Data Agent → Risk Agent → Synthesizer", status: "done" },
+      { name: "Legal review: Reader → Clause Flagger → Protection Checker → Legal Editor", status: "done" },
+      { name: "Research & Intelligence: Researcher → Fact Checker → Devil's Advocate → Research Editor", status: "done" },
+      { name: "Content & Marketing: Content Writer → SEO Agent → Brand Voice → Content Editor", status: "done" },
+      { name: "Academic review: Summarizer → Critic → Literature Synthesizer → Citation Agent", status: "done" },
       { name: "Preset routing by preset_id in POST /tasks/", status: "done" },
     ],
   },
@@ -69,10 +69,10 @@ const phases: Phase[] = [
     color: "#059669",
     status: "done",
     tasks: [
-      { name: "Projects page with preset selector tabs", status: "done" },
-      { name: "Live agent feed via WebSocket events", status: "done" },
-      { name: "Task sidebar with status, show more/less", status: "done" },
-      { name: "Delivery panel with QA report tab", status: "done" },
+      { name: "Projects page with 6 preset selector tabs", status: "done" },
+      { name: "Live agent event stream via WebSocket", status: "done" },
+      { name: "Task sidebar with status badges, show more/less for long goals", status: "done" },
+      { name: "Delivery panel with Deliverable and QA Report tabs", status: "done" },
       { name: "App preview iframe for software-dev output", status: "done" },
       { name: "Orphaned task reset on backend startup", status: "done" },
     ],
@@ -84,28 +84,63 @@ const phases: Phase[] = [
     color: "#d97706",
     status: "done",
     tasks: [
-      { name: "6 built-in presets with agent rosters and workflows", status: "done" },
-      { name: "Agent CRUD: add, edit, delete agents with custom prompts", status: "done" },
-      { name: "Workflow editor with loop configuration", status: "done" },
+      { name: "6 built-in presets with agent rosters, prompts, and workflows", status: "done" },
+      { name: "Agent CRUD: add, edit, delete agents with custom system prompts", status: "done" },
+      { name: "Workflow editor with loop and revision configuration", status: "done" },
       { name: "Save current team as custom preset, fork built-ins", status: "done" },
       { name: "Preset activation persisted to localStorage", status: "done" },
+      { name: "Custom presets synced to DB and fetched on load", status: "done" },
     ],
   },
   {
     phase: 6,
-    title: "Production & Polish",
-    subtitle: "Deployment, reliability, multi-tenancy",
+    title: "Pipeline Intelligence",
+    subtitle: "Visibility into every agent's context and output",
+    color: "#0284c7",
+    status: "done",
+    tasks: [
+      { name: "Pipeline graph UI: visual agent flow with node cards per agent", status: "done" },
+      { name: "agent_input/agent_output saved to DB for every agent in every graph", status: "done" },
+      { name: "INPUT panel: exact context passed to each agent (from upstream outputs)", status: "done" },
+      { name: "OUTPUT panel: full agent response with markdown rendering", status: "done" },
+      { name: "Turn selector: inspect each revision cycle independently", status: "done" },
+      { name: "ExpandableContent: show-more/less for long inputs and outputs", status: "done" },
+      { name: "Live event filtering: WS previews don't override persisted DB content", status: "done" },
+      { name: "Fixed write_file bug in research_editor, content_editor, legal_editor, citation_agent", status: "done" },
+    ],
+  },
+  {
+    phase: 7,
+    title: "Smart UX Layer",
+    subtitle: "LLM-powered prompt refinement and task summaries",
+    color: "#ec4899",
+    status: "done",
+    tasks: [
+      { name: "MCQ refinement modal: 3 dynamic questions generated by Haiku before task submission", status: "done" },
+      { name: "Questions are goal-specific (not preset-hardcoded) — works for custom agents too", status: "done" },
+      { name: "Answers appended as structured context to enrich the goal before sending to agents", status: "done" },
+      { name: "TL;DR summary: Haiku reads final outputs and writes 2-3 sentence conclusion", status: "done" },
+      { name: "Summary shown as banner below pipeline graph on task completion", status: "done" },
+      { name: "Summary cached in memory — instant on revisit, no re-generation", status: "done" },
+    ],
+  },
+  {
+    phase: 8,
+    title: "Production & Scale",
+    subtitle: "Auth, reliability, long-term memory, streaming",
     color: "#64748b",
     status: "active",
     tasks: [
-      { name: "Vercel deployment with ESLint clean build", status: "done" },
+      { name: "Vercel deployment with clean ESLint build", status: "done" },
       { name: "CORS fix for all localhost ports (allow_origin_regex)", status: "done" },
-      { name: "env_ignore_empty so .env key always loads correctly", status: "done" },
+      { name: "Sticky sidebar scroll without locking full page height", status: "done" },
+      { name: "Duplicate preset deduplication (by ID and name)", status: "done" },
       { name: "User auth + per-user task isolation", status: "todo" },
       { name: "Streaming token output (real-time text as agents write)", status: "todo" },
       { name: "Task cancellation", status: "todo" },
-      { name: "Pinecone long-term semantic memory", status: "todo" },
-      { name: "Cloudflare R2 artefact storage", status: "todo" },
+      { name: "Pinecone long-term semantic memory across tasks", status: "todo" },
+      { name: "Cloudflare R2 artefact storage (replace local filesystem)", status: "todo" },
+      { name: "Agent parallelism: run independent nodes concurrently", status: "todo" },
     ],
   },
 ];
@@ -117,28 +152,45 @@ const statusIcon = (s: Status) => {
 };
 
 export default function PlanPage() {
-  const done = phases.filter(p => p.status === "done").length;
-  const total = phases.length;
+  const allTasks = phases.flatMap(p => p.tasks);
+  const doneTasks = allTasks.filter(t => t.status === "done").length;
+  const totalTasks = allTasks.length;
+  const donePhases = phases.filter(p => p.status === "done").length;
 
   return (
     <div className="px-6 sm:px-10 py-10 max-w-3xl mx-auto">
       <div className="mb-8">
         <h1 className="text-2xl font-bold mb-1" style={{ color: "var(--foreground)" }}>Dev Plan</h1>
-        <p className="text-sm mb-4" style={{ color: "var(--muted)" }}>
+        <p className="text-sm mb-5" style={{ color: "var(--muted)" }}>
           What has been built and what is still ahead.
         </p>
+
+        {/* Stats row */}
+        <div className="flex items-center gap-6 mb-4">
+          {[
+            { label: "Phases complete", value: `${donePhases}/${phases.length}`, color: "#059669" },
+            { label: "Tasks complete", value: `${doneTasks}/${totalTasks}`, color: "#4f46e5" },
+            { label: "Agents built", value: "20+", color: "#7c3aed" },
+          ].map(({ label, value, color }) => (
+            <div key={label}>
+              <p className="text-xl font-bold" style={{ color }}>{value}</p>
+              <p className="text-xs" style={{ color: "var(--muted)" }}>{label}</p>
+            </div>
+          ))}
+        </div>
+
         {/* Progress bar */}
         <div className="flex items-center gap-3">
           <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: "var(--card-border)" }}>
-            <div className="h-full rounded-full transition-all" style={{ width: `${(done / total) * 100}%`, background: "#059669" }} />
+            <div className="h-full rounded-full transition-all" style={{ width: `${(doneTasks / totalTasks) * 100}%`, background: "#059669" }} />
           </div>
-          <span className="text-xs font-semibold shrink-0" style={{ color: "var(--muted)" }}>{done}/{total} phases</span>
+          <span className="text-xs font-semibold shrink-0" style={{ color: "var(--muted)" }}>{Math.round((doneTasks / totalTasks) * 100)}%</span>
         </div>
       </div>
 
-      <div className="space-y-6">
+      <div className="space-y-5">
         {phases.map(({ phase, title, subtitle, color, status, tasks }) => {
-          const doneTasks = tasks.filter(t => t.status === "done").length;
+          const done = tasks.filter(t => t.status === "done").length;
           return (
             <div key={phase} className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--card-border)" }}>
               {/* Phase header */}
@@ -155,7 +207,7 @@ export default function PlanPage() {
                   <p className="text-xs" style={{ color: "var(--muted)" }}>{subtitle}</p>
                 </div>
                 <span className="text-xs font-semibold shrink-0" style={{ color }}>
-                  {doneTasks}/{tasks.length}
+                  {done}/{tasks.length}
                 </span>
               </div>
 
@@ -165,7 +217,11 @@ export default function PlanPage() {
                   <div key={name} className="flex items-start gap-2.5">
                     <div className="mt-0.5 shrink-0">{statusIcon(ts)}</div>
                     <div>
-                      <span className="text-xs" style={{ color: ts === "done" ? "var(--muted)" : "var(--foreground)", textDecoration: ts === "done" ? "line-through" : "none", opacity: ts === "done" ? 0.6 : 1 }}>
+                      <span className="text-xs" style={{
+                        color: ts === "done" ? "var(--muted)" : "var(--foreground)",
+                        textDecoration: ts === "done" ? "line-through" : "none",
+                        opacity: ts === "done" ? 0.6 : 1,
+                      }}>
                         {name}
                       </span>
                       {detail && <p className="text-xs mt-0.5" style={{ color: "var(--muted-light)" }}>{detail}</p>}
