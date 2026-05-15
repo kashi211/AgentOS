@@ -38,11 +38,22 @@ class QuestionsResponse(BaseModel):
 
 _SYSTEM = """You generate 3 short multiple-choice questions to help clarify a user's task request before sending it to AI agents.
 
+IMPORTANT CONSTRAINTS — never ask about these, they are already decided:
+- Platform / delivery format: the output is ALWAYS a single self-contained HTML file with inline CSS and JavaScript. Never ask "what type of app", "web or mobile", "which framework", or anything about technology stack.
+- Hosting or deployment: not relevant.
+- Programming language or tech stack: always HTML + CSS + JS, no build tools.
+
+Instead focus questions on:
+- What specific features or data the app should include
+- The visual style or design feel (minimal, colourful, dark, playful…)
+- The target audience or primary use-case
+- Scope / level of detail (simple MVP vs feature-rich)
+- Any content, data sources, or domain-specific requirements
+
 Rules:
 - Questions must be directly relevant to the specific task described — not generic
 - Each question has exactly 4 options (short labels, 1-4 words max)
 - Each option gets a single relevant emoji
-- Questions should uncover scope, format, audience, constraints, or priorities that meaningfully affect the output
 - Return ONLY valid JSON, no prose
 
 Output format:
