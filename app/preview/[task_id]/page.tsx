@@ -289,7 +289,14 @@ export default function ProjectPage() {
             </div>
           )}
 
-          {!selectedFile ? (
+          {files.length === 0 ? (
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12 }}>
+              <p style={{ color: "#475569", fontSize: 28 }}>📭</p>
+              <p style={{ color: "#94a3b8", fontSize: 14, fontWeight: 600 }}>No files generated</p>
+              <p style={{ color: "#475569", fontSize: 12, textAlign: "center", maxWidth: 280 }}>This task didn&apos;t produce any output files. The app preview is only available for software development tasks.</p>
+              <Link href="/projects" style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 8, background: "#1e293b", color: "#94a3b8", fontSize: 13, fontWeight: 600, textDecoration: "none" }}>← Back to Projects</Link>
+            </div>
+          ) : !selectedFile ? (
             <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
               <p style={{ color: "#334155", fontSize: 14 }}>Select a file</p>
             </div>

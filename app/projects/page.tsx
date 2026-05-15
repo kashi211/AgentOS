@@ -608,11 +608,11 @@ function extractDeliverable(messages: Message[]) {
   return del[del.length - 1] ?? null;
 }
 
-function DeliveryPanel({ task, messages, preset }: { task: Task; messages: Message[]; preset: Preset | undefined }) {
+function DeliveryPanel({ task, messages, preset, fileCount }: { task: Task; messages: Message[]; preset: Preset | undefined; fileCount: number }) {
   const deliverable = extractDeliverable(messages);
   const quality = extractQualityReport(messages);
   const [tab, setTab] = useState<"output"|"report">("output");
-  const isDevPreset = task.preset_id === "software-dev" || !task.preset_id || (preset?.agents?.some(a => a.role.toLowerCase().includes("developer")) ?? false);
+  const isDevPreset = (task.preset_id === "software-dev" || !task.preset_id || (preset?.agents?.some(a => a.role.toLowerCase().includes("developer")) ?? false)) && fileCount > 0;
   return (
     <div className="mx-6 mb-6 mt-4 rounded-2xl overflow-hidden shrink-0" style={{ border: "1px solid var(--card-border)" }}>
       <div className="px-5 py-3 flex items-center justify-between flex-wrap gap-2" style={{ background: "var(--accent-light)", borderBottom: "1px solid rgba(79,70,229,0.15)" }}>
@@ -709,6 +709,7 @@ export default function ProjectsPage() {
   const [tldrLoading, setTldrLoading] = useState(false);
   const [streamingContent, setStreamingContent] = useState<Record<string, string>>({});
   const [cancelling, setCancelling] = useState(false);
+  const [taskFileCount, setTaskFileCount] = useState<number>(0);
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
@@ -757,6 +758,13 @@ export default function ProjectsPage() {
     }
   };
 
+  const fetchFileCount = async (taskId: string) => {
+    try {
+      const r = await fetch(`${API}/tasks/${taskId}/files`);
+      if (r.ok) { const files = await r.json(); setTaskFileCount(files.length); }
+    } catch {}
+  };
+
   const selectTask = async (taskId: string) => {
     setSelectedId(taskId);
     setLiveEvents([]);
@@ -764,6 +772,7 @@ export default function ProjectsPage() {
     setTldr(null);
     setStreamingContent({});
     setCancelling(false);
+    setTaskFileCount(0);
     setLoadingMessages(true);
     wsRef.current?.close();
     try {
@@ -771,8 +780,10 @@ export default function ProjectsPage() {
       if (r.ok) {
         const d = await r.json();
         setMessages(d.messages ?? []);
-        // If already done, fetch TL;DR immediately
-        if (d.status === "done") fetchTldr(taskId);
+        if (d.status === "done") {
+          fetchTldr(taskId);
+          fetchFileCount(taskId);
+        }
       }
     } finally { setLoadingMessages(false); }
 
@@ -807,8 +818,7 @@ export default function ProjectsPage() {
       setTasks(prev => prev.map(t => {
         if (t.id !== taskId) return t;
         if (ev.type === "done" || ev.type === "done_escalated") {
-          // Task just finished — fetch TL;DR after a short delay for DB to flush
-          setTimeout(() => fetchTldr(taskId), 1500);
+          setTimeout(() => { fetchTldr(taskId); fetchFileCount(taskId); }, 1500);
           return { ...t, status: "done" };
         }
         if (ev.type === "error") return { ...t, status: "failed" };
@@ -1070,7 +1080,7 @@ export default function ProjectsPage() {
                   )}
                   {/* Delivery panel */}
                   {selectedTask?.status === "done" && (
-                    <DeliveryPanel task={selectedTask} messages={allMessages} preset={taskPreset} />
+                    <DeliveryPanel task={selectedTask} messages={allMessages} preset={taskPreset} fileCount={taskFileCount} />
                   )}
                 </div>
               ) : (
@@ -1082,7 +1092,7 @@ export default function ProjectsPage() {
                     <span className="text-xs px-2 py-0.5 rounded font-mono ml-auto" style={{ background: "#fef9c3", color: "#92400e" }}>INPUT = prompt sent to agent · OUTPUT = LLM response</span>
                   </div>
                   {allMessages.map((msg, i) => <RawFeedMessage key={msg.id ?? i} msg={msg}/>)}
-                  {selectedTask?.status === "done" && <DeliveryPanel task={selectedTask} messages={allMessages} preset={taskPreset}/>}
+                  {selectedTask?.status === "done" && <DeliveryPanel task={selectedTask} messages={allMessages} preset={taskPreset} fileCount={taskFileCount}/>}
                 </div>
               )}
             </>

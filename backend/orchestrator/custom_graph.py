@@ -47,7 +47,16 @@ class DynamicAgent(BaseAgent):
 
     @property
     def system_prompt(self) -> str:
-        return self._system_prompt_text
+        base = self._system_prompt_text
+        # If this agent has no file-writing capability, make it clear it should
+        # not claim to have built or implemented anything — only analyse/advise.
+        if "write_file" not in self._tool_names:
+            base += (
+                "\n\nIMPORTANT: You do not have access to file-writing tools. "
+                "Do NOT claim to have built, created, implemented, or written any files or code. "
+                "Provide analysis, recommendations, and findings in prose only."
+            )
+        return base
 
     @property
     def tools(self) -> list[dict]:
