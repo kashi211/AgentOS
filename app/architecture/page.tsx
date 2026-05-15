@@ -1,4 +1,4 @@
-import { Server, Globe, Database, Cpu, ArrowRight, Zap, MessageSquare, BarChart3, Shield, Radio, XCircle, Brain, HardDrive, GitMerge } from "lucide-react";
+import { Server, Globe, Database, Cpu, ArrowRight, Zap, MessageSquare, BarChart3, Shield, Radio, XCircle, Brain, HardDrive, GitMerge, Search, RefreshCw, Users } from "lucide-react";
 
 const techStack = [
   {
@@ -18,11 +18,12 @@ const techStack = [
     color: "#7c3aed",
     icon: Server,
     items: [
-      { name: "FastAPI (Python 3.13)", desc: "REST + WebSocket + SSE; asyncio task registry for cancellation" },
+      { name: "FastAPI (Python 3.13)", desc: "REST + WebSocket; asyncio task registry for cancellation" },
       { name: "LangGraph", desc: "StateGraph orchestration — conditional routing, revision loops, parallel nodes" },
-      { name: "asyncpg", desc: "Async PostgreSQL driver with connection pooling" },
+      { name: "Custom orchestrator", desc: "DynamicAgent + run_custom_preset for user-built agent teams" },
+      { name: "asyncpg", desc: "Async PostgreSQL driver; statement_cache_size=0 for schema-change safety" },
       { name: "Anthropic SDK", desc: "Async Claude client with tool-use loop + messages.stream() for real-time tokens" },
-      { name: "PyJWT + bcrypt", desc: "Stateless JWT auth (72h tokens, HS256); bcrypt password hashing" },
+      { name: "Serper API", desc: "Live web search; results injected as context before agent runs when checkbox is on" },
       { name: "boto3 (S3-compatible)", desc: "Cloudflare R2 artefact storage with local filesystem fallback" },
     ],
   },
@@ -43,7 +44,7 @@ const techStack = [
     color: "#059669",
     icon: Database,
     items: [
-      { name: "PostgreSQL (Neon)", desc: "tasks, messages (agent_input/output), subtasks, users" },
+      { name: "PostgreSQL (Neon)", desc: "tasks (+ web_search, preset_id), messages, subtasks, custom_presets" },
       { name: "Redis (Upstash)", desc: "Agent short-term memory, 500-char rolling context window" },
       { name: "Pinecone", desc: "Long-term semantic memory; multilingual-e5-large embeddings (1024-dim)" },
       { name: "Cloudflare R2", desc: "Generated artefacts via S3-compatible API; public URL per file" },
@@ -101,14 +102,19 @@ const pipelines = [
     loop: "Critic ↺ Summarizer (max 1 revision)",
     detail: "Topic surveyed, critically evaluated, synthesized into narrative, full academic review with citations written.",
   },
+  {
+    id: "custom",
+    label: "Custom Agent Teams",
+    color: "#0891b2",
+    agents: ["Agent 1", "Agent 2", "…", "Agent N"],
+    loop: "Configurable loops + reviewer heuristics",
+    detail: "User-built teams run via DynamicAgent: role, model, and system prompt loaded from DB at runtime. Reviewer nodes scored by keyword heuristics; loops respect max_revisions from preset config.",
+  },
 ];
 
 const apiRoutes = [
-  { method: "POST", path: "/auth/register", desc: "Register a new user (email + bcrypt password hash)" },
-  { method: "POST", path: "/auth/login", desc: "Login; returns 72h JWT if credentials valid" },
-  { method: "GET",  path: "/auth/me", desc: "Return current user from Bearer token" },
-  { method: "POST", path: "/tasks/", desc: "Create and queue a task; optional JWT for per-user isolation" },
-  { method: "GET",  path: "/tasks/", desc: "List tasks (filtered by user_id if authenticated)" },
+  { method: "POST", path: "/tasks/", desc: "Create and queue a task; accepts preset_id + web_search flag" },
+  { method: "GET",  path: "/tasks/", desc: "List all tasks (most recent 50)" },
   { method: "GET",  path: "/tasks/{id}", desc: "Task detail with all messages and subtasks" },
   { method: "POST", path: "/tasks/{id}/cancel", desc: "Cancel a running task; kills asyncio task, marks status cancelled" },
   { method: "GET",  path: "/tasks/{id}/summary", desc: "LLM-generated TL;DR for completed tasks (Haiku, cached)" },
@@ -123,10 +129,22 @@ const apiRoutes = [
 
 const behaviours = [
   {
-    icon: Shield,
+    icon: Users,
+    color: "#0891b2",
+    title: "Custom agent orchestration",
+    desc: "User-defined teams run through DynamicAgent — role, model, and system prompt loaded from the custom_presets DB table at runtime. run_custom_preset executes nodes sequentially, passes context between agents, and applies reviewer heuristics for loops.",
+  },
+  {
+    icon: Search,
     color: "#4f46e5",
-    title: "JWT user auth",
-    desc: "POST /auth/register and /auth/login issue 72h HS256 tokens. All task endpoints accept an optional Bearer header; tasks are scoped to user_id when provided. Backward-compatible — works without a token too.",
+    title: "Live web search injection",
+    desc: "A checkbox next to the Run button triggers a Serper API call before any agent starts. Top organic + news results are formatted as a '## Current Web Context' section prepended to the goal. The web_search flag is stored in the DB so startup recovery re-runs include it.",
+  },
+  {
+    icon: RefreshCw,
+    color: "#059669",
+    title: "Task persistence & recovery",
+    desc: "On server startup, worker.py scans for tasks stuck in non-terminal states (from server crashes or restarts), clears their partial messages, resets status to pending, and re-runs them automatically. No manual intervention required.",
   },
   {
     icon: Radio,
@@ -162,19 +180,25 @@ const behaviours = [
     icon: MessageSquare,
     color: "#d97706",
     title: "Context flow tracking",
-    desc: "Every agent saves agent_input (exact context from upstream) and agent_output (full response) to the DB. The pipeline graph UI lets you inspect each agent's context and output per revision cycle.",
+    desc: "Every agent saves agent_input (exact context from upstream) and agent_output (full response) to the DB. The pipeline graph UI lets you inspect each agent's context and output per revision cycle, with Turn 1 input shown as fallback for revision turns.",
   },
   {
     icon: Zap,
     color: "#64748b",
     title: "Smart prompt refinement",
-    desc: "Before task submission, Haiku generates 3 goal-specific MCQ questions. Answers are appended as structured context. Works for all presets and custom agents.",
+    desc: "Before task submission, Haiku generates 3 goal-specific MCQ questions (never asking about platform or tech stack — always HTML+JS). Answers are appended as structured context. Works for all presets and custom agents.",
   },
   {
     icon: BarChart3,
     color: "#0891b2",
     title: "Auto TL;DR summary",
     desc: "On task completion, Haiku reads the final deliverable and key outputs to produce a 2-3 sentence plain-English summary. Cached in memory; shown as a banner above the pipeline detail.",
+  },
+  {
+    icon: Shield,
+    color: "#94a3b8",
+    title: "Schema-safe DB pool",
+    desc: "asyncpg pool created with statement_cache_size=0, preventing InvalidCachedStatementError when new columns are added via ALTER TABLE migrations. Migrations run idempotently on every startup using DO $$ IF NOT EXISTS $$ blocks.",
   },
 ];
 
@@ -220,10 +244,10 @@ export default function ArchitecturePage() {
       <section className="mb-10">
         <h2 className="text-sm font-semibold uppercase tracking-widest mb-1" style={{ color: "var(--muted-light)" }}>Agent Pipelines</h2>
         <p className="text-xs mb-5" style={{ color: "var(--muted)" }}>
-          Each preset maps to a dedicated LangGraph pipeline. Every agent node saves its full input context and output to the DB as{" "}
+          Built-in presets use dedicated LangGraph graphs. Custom presets run through the dynamic orchestrator.
+          Every agent node saves its full input context and output to the DB as{" "}
           <code className="px-1 rounded text-xs" style={{ background: "var(--card-border)" }}>agent_input</code> /{" "}
           <code className="px-1 rounded text-xs" style={{ background: "var(--card-border)" }}>agent_output</code> messages.
-          QA-style reviewers loop back up to the revision limit; independent nodes run in parallel via <code className="px-1 rounded text-xs" style={{ background: "var(--card-border)" }}>asyncio.gather</code>.
         </p>
         <div className="space-y-3">
           {pipelines.map(({ id, label, color, agents, loop, detail }) => (
@@ -290,16 +314,17 @@ export default function ArchitecturePage() {
         <div className="rounded-xl p-5" style={{ border: "1px solid var(--card-border)", background: "var(--card)" }}>
           <div className="space-y-3">
             {[
-              { step: "1", text: "User signs in → JWT stored in localStorage. All subsequent requests include Authorization: Bearer <token>.", color: "#4f46e5" },
-              { step: "2", text: "User types goal → clicks Run → MCQ modal opens; Haiku generates 3 contextual questions. User selects answers (or skips).", color: "#7c3aed" },
-              { step: "3", text: "Answers appended as structured context → POST /tasks/ with enriched goal + optional user_id from JWT.", color: "#0284c7" },
-              { step: "4", text: "Backend creates DB record, picks matching LangGraph graph by preset_id, spawns it as a tracked asyncio.Task (cancellable).", color: "#059669" },
-              { step: "5", text: "Before each agent run: top-3 semantically similar Pinecone memories fetched and prepended to context.", color: "#d97706" },
-              { step: "6", text: "Each agent node: saves agent_input → streams tokens to WS via messages.stream() → saves agent_output → emits preview event. Independent nodes run via asyncio.gather.", color: "#ec4899" },
-              { step: "7", text: "QA/reviewer evaluates: pass → advance; fail → loop back (max revision limit). User can POST /tasks/{id}/cancel at any time to stop.", color: "#dc2626" },
-              { step: "8", text: "After each run: agent output and goal upserted into Pinecone for future cross-task retrieval.", color: "#7c3aed" },
-              { step: "9", text: "Generated files written to Cloudflare R2 (or local fallback). File list exposed via /tasks/{id}/files.", color: "#059669" },
-              { step: "10", text: "On completion: frontend fetches /tasks/{id}/summary; Haiku summarises in 2-3 sentences (cached). Pipeline graph shows every agent's full input/output.", color: "#64748b" },
+              { step: "1", text: "User selects a preset (built-in or custom), types goal, optionally checks 'Web search', clicks Run.", color: "#4f46e5" },
+              { step: "2", text: "MCQ modal opens: Haiku generates 3 goal-specific questions (never platform/tech). User picks answers or skips.", color: "#7c3aed" },
+              { step: "3", text: "Answers appended as structured context → POST /tasks/ with enriched goal, preset_id, and web_search flag.", color: "#0284c7" },
+              { step: "4", text: "Backend saves task to DB (including web_search). If web_search=true, Serper API fetches top results and prepends as '## Current Web Context' to the goal.", color: "#059669" },
+              { step: "5", text: "preset_id checked: built-in IDs route to dedicated LangGraph graph; custom IDs load preset JSON from DB and run through DynamicAgent orchestrator.", color: "#d97706" },
+              { step: "6", text: "Before each agent run: top-3 semantically similar Pinecone memories fetched and prepended to context.", color: "#ec4899" },
+              { step: "7", text: "Each agent node: saves agent_input → streams tokens to WS via messages.stream() → saves agent_output → emits preview event. Independent nodes run via asyncio.gather.", color: "#dc2626" },
+              { step: "8", text: "QA/reviewer evaluates: pass → advance; fail → loop back (up to max_revisions). User can POST /tasks/{id}/cancel at any time.", color: "#7c3aed" },
+              { step: "9", text: "After each run: agent output upserted into Pinecone for future cross-task retrieval. Generated files written to Cloudflare R2.", color: "#059669" },
+              { step: "10", text: "On completion: frontend fetches /tasks/{id}/summary; Haiku summarises in 2-3 sentences (cached). Pipeline graph shows every agent's full input/output with turn navigation.", color: "#64748b" },
+              { step: "11", text: "On server restart: worker.py finds tasks stuck in non-terminal states, wipes their partial messages, and re-runs them from scratch automatically.", color: "#0891b2" },
             ].map(({ step, text, color }) => (
               <div key={step} className="flex items-start gap-3">
                 <div className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 text-xs font-bold text-white mt-0.5" style={{ background: color, minWidth: 20 }}>

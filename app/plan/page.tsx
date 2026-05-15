@@ -106,7 +106,6 @@ const phases: Phase[] = [
       { name: "Turn selector: inspect each revision cycle independently", status: "done" },
       { name: "ExpandableContent: show-more/less for long inputs and outputs", status: "done" },
       { name: "Live event filtering: WS previews don't override persisted DB content", status: "done" },
-      { name: "Fixed write_file bug in research_editor, content_editor, legal_editor, citation_agent", status: "done" },
     ],
   },
   {
@@ -127,20 +126,50 @@ const phases: Phase[] = [
   {
     phase: 8,
     title: "Production & Scale",
-    subtitle: "Auth, streaming, memory, storage, parallelism",
+    subtitle: "Streaming, memory, storage, parallelism, auth",
     color: "#64748b",
     status: "done",
     tasks: [
       { name: "Vercel deployment with clean ESLint build", status: "done" },
-      { name: "CORS fix for all localhost ports (allow_origin_regex)", status: "done" },
-      { name: "Sticky sidebar scroll without locking full page height", status: "done" },
-      { name: "Duplicate preset deduplication (by ID and name)", status: "done" },
       { name: "User auth: JWT (72h, HS256) + bcrypt; /auth/register, /auth/login, /auth/me", status: "done", detail: "Per-user task isolation — tasks scoped to user_id when Bearer token provided" },
-      { name: "Streaming token output: messages.stream() → WS {type:'token'} → live AgentDetail", status: "done", detail: "Global stream registry keyed by task_id; unregistered in finally block" },
+      { name: "Streaming token output: messages.stream() → WS {type:'token'} → live AgentDetail", status: "done" },
       { name: "Task cancellation: asyncio.Task registry + POST /tasks/{id}/cancel + UI cancel button", status: "done" },
-      { name: "Pinecone long-term semantic memory: multilingual-e5-large (1024-dim, hosted inference)", status: "done", detail: "Top-3 memories retrieved before each run; output upserted after. Graceful no-op without API key." },
+      { name: "Pinecone long-term semantic memory: multilingual-e5-large (1024-dim, hosted inference)", status: "done" },
       { name: "Cloudflare R2 artefact storage: boto3 S3-compatible client with local filesystem fallback", status: "done" },
       { name: "Agent parallelism: asyncio.gather for independent nodes (SEO + Brand Voice in content graph)", status: "done" },
+    ],
+  },
+  {
+    phase: 9,
+    title: "Custom Orchestration & Resilience",
+    subtitle: "Dynamic agent teams, web search, task persistence, UX polish",
+    color: "#0891b2",
+    status: "done",
+    tasks: [
+      { name: "Custom preset orchestrator: DynamicAgent + run_custom_preset replaces static software-dev routing", status: "done", detail: "Agents built from preset JSON at runtime; loop/revision heuristics applied dynamically" },
+      { name: "Auth removed from frontend — sign-in stripped, all tasks run auth-free", status: "done" },
+      { name: "Serper web search checkbox: fetches live results via API and injects as context before any agent runs", status: "done", detail: "web_search flag persisted to DB so startup recovery re-runs faithfully" },
+      { name: "Task persistence: startup recovery re-runs interrupted tasks (server restart / crash)", status: "done", detail: "worker.py clears partial messages and re-queues; asyncpg statement_cache_size=0 prevents schema-change errors" },
+      { name: "Preview app card gated on real file existence + isDevPreset check", status: "done" },
+      { name: "MCQ questions forbidden from asking about platform/tech stack (always HTML+JS)", status: "done" },
+      { name: "Agent INPUT panel shows role description and top responsibilities", status: "done" },
+      { name: "Turn 2 INPUT fallback: shows Turn 1 prompt when revision turn has no new input", status: "done" },
+      { name: "OUTPUT panel capped at 60vh with independent scroll", status: "done" },
+      { name: "Custom preset info line: falls back to agent descriptions when tagline is empty", status: "done" },
+    ],
+  },
+  {
+    phase: 10,
+    title: "Observability & Eval",
+    subtitle: "Cost tracking, quality metrics, LLM-as-judge",
+    color: "#dc2626",
+    status: "todo",
+    tasks: [
+      { name: "Token usage + cost tracking per task and per agent", status: "todo" },
+      { name: "Latency logging per agent node with p50/p95 summary", status: "todo" },
+      { name: "LLM-as-judge eval: rate final outputs for correctness, completeness, tone", status: "todo" },
+      { name: "Quality score history per preset — track improvement over prompt iterations", status: "todo" },
+      { name: "Eval dashboard: compare runs side-by-side with scores", status: "todo" },
     ],
   },
 ];
@@ -170,7 +199,7 @@ export default function PlanPage() {
           {[
             { label: "Phases complete", value: `${donePhases}/${phases.length}`, color: "#059669" },
             { label: "Tasks complete", value: `${doneTasks}/${totalTasks}`, color: "#4f46e5" },
-            { label: "Agents built", value: "22+", color: "#7c3aed" },
+            { label: "Agents built", value: "25+", color: "#7c3aed" },
           ].map(({ label, value, color }) => (
             <div key={label}>
               <p className="text-xl font-bold" style={{ color }}>{value}</p>
