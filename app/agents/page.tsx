@@ -321,7 +321,19 @@ function PresetCard({ preset, isActive, onUse, onFork, onDelete }: {
           </div>
           <span className="text-xs px-2 py-0.5 rounded-full font-medium shrink-0" style={{ background: `${cc}12`, color: cc, border: `1px solid ${cc}25` }}>{preset.category}</span>
         </div>
-        <p className="text-xs leading-relaxed mb-3 flex-1" style={{ color: "var(--muted)" }}>{preset.description}</p>
+        <p className="text-xs leading-relaxed mb-3 flex-1" style={{ color: "var(--muted)" }}>
+          {preset.description || (() => {
+            const roles = preset.agents.map(a => a.role);
+            const loopInfo = preset.workflow.loops.length > 0
+              ? ` ${preset.workflow.loops[0].fromId} loops back up to ${preset.workflow.loops[0].maxIterations}x for revisions.`
+              : "";
+            const descriptions = preset.agents.map(a => a.description).filter(Boolean);
+            if (descriptions.length > 0) {
+              return descriptions.slice(0, 2).join(" ") + (descriptions.length > 2 ? ` Plus ${descriptions.length - 2} more agent${descriptions.length - 2 > 1 ? "s" : ""}.` : "") + loopInfo;
+            }
+            return `${roles.join(" → ")} pipeline.${loopInfo}`;
+          })()}
+        </p>
         <div className="flex items-center gap-1.5 mb-3 flex-wrap">
           {preset.agents.map((a, i) => (
             <div key={a.id} className="flex items-center gap-1.5">
