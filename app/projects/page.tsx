@@ -10,7 +10,6 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { BUILTIN_PRESETS, loadCustomPresets, saveCustomPresets, loadActivePresetId, fetchPresetsFromAPI, type Preset } from "@/lib/presets";
-import { authHeaders } from "@/lib/auth";
 
 /* ─── API config ─────────────────────────────────────────── */
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -732,7 +731,7 @@ export default function ProjectsPage() {
 
   const fetchTasks = async () => {
     try {
-      const r = await fetch(`${API}/tasks/`, { headers: { ...authHeaders() } });
+      const r = await fetch(`${API}/tasks/`);
       if (r.ok) setTasks(await r.json());
     } catch {}
   };
@@ -741,7 +740,7 @@ export default function ProjectsPage() {
     setTldr(null);
     setTldrLoading(true);
     try {
-      const r = await fetch(`${API}/tasks/${taskId}/summary`, { headers: { ...authHeaders() } });
+      const r = await fetch(`${API}/tasks/${taskId}/summary`);
       if (r.ok) { const d = await r.json(); setTldr(d.summary ?? null); }
     } catch { /* silent */ }
     finally { setTldrLoading(false); }
@@ -751,10 +750,7 @@ export default function ProjectsPage() {
     if (cancelling) return;
     setCancelling(true);
     try {
-      await fetch(`${API}/tasks/${taskId}/cancel`, {
-        method: "POST",
-        headers: { ...authHeaders() },
-      });
+      await fetch(`${API}/tasks/${taskId}/cancel`, { method: "POST" });
       setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: "cancelled" } : t));
     } finally {
       setCancelling(false);
@@ -771,7 +767,7 @@ export default function ProjectsPage() {
     setLoadingMessages(true);
     wsRef.current?.close();
     try {
-      const r = await fetch(`${API}/tasks/${taskId}`, { headers: { ...authHeaders() } });
+      const r = await fetch(`${API}/tasks/${taskId}`);
       if (r.ok) {
         const d = await r.json();
         setMessages(d.messages ?? []);
@@ -834,7 +830,7 @@ export default function ProjectsPage() {
     try {
       const r = await fetch(`${API}/tasks/questions`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders() },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ goal: goal.trim(), preset_id: selectedPresetId }),
       });
       if (r.ok) {
@@ -856,7 +852,7 @@ export default function ProjectsPage() {
     setSubmitting(true);
     const enrichedGoal = buildEnrichedGoal(goal.trim(), questions, answers);
     try {
-      const r = await fetch(`${API}/tasks/`, { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ goal: enrichedGoal, preset_id: selectedPresetId }) });
+      const r = await fetch(`${API}/tasks/`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ goal: enrichedGoal, preset_id: selectedPresetId }) });
       if (r.ok) {
         const d = await r.json();
         setGoal("");

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   GitBranch,
@@ -13,9 +13,7 @@ import {
   ChevronRight,
   Menu,
   X,
-  LogOut,
 } from "lucide-react";
-import { clearToken, getToken } from "@/lib/auth";
 
 const nav = [
   { href: "/", label: "Home", icon: LayoutDashboard },
@@ -30,14 +28,6 @@ const secondaryNav = [
 
 function SidebarContent({ onClose }: { onClose?: () => void }) {
   const pathname = usePathname();
-  const router = useRouter();
-  const isLoggedIn = typeof window !== "undefined" ? !!getToken() : false;
-
-  const handleLogout = () => {
-    clearToken();
-    if (onClose) onClose();
-    router.push("/login");
-  };
 
   return (
     <aside
@@ -129,27 +119,6 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
             </span>
           </div>
         </div>
-        {isLoggedIn && (
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all"
-            style={{ color: "var(--muted)", background: "transparent", border: "1px solid var(--card-border)" }}
-          >
-            <LogOut size={13} className="shrink-0" />
-            <span>Sign out</span>
-          </button>
-        )}
-        {!isLoggedIn && (
-          <Link
-            href="/login"
-            onClick={onClose}
-            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all"
-            style={{ color: "var(--accent)", background: "var(--accent-light)", border: "1px solid rgba(79,70,229,0.15)", display: "flex" }}
-          >
-            <LogOut size={13} className="shrink-0" />
-            <span>Sign in</span>
-          </Link>
-        )}
       </div>
     </aside>
   );
