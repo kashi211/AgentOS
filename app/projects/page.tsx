@@ -367,43 +367,47 @@ function AgentDetail({ node }: { node: PipelineNode }) {
       </div>
 
       {/* Split pane: INPUT left, OUTPUT right — natural height, page scrolls */}
-      <div className="flex" style={{ minHeight: 200 }}>
+      <div className="flex" style={{ minHeight: 220 }}>
 
         {/* INPUT panel */}
         {currentTurn?.input ? (
-          <div className="w-2/5 shrink-0 p-4" style={{ borderRight: "1px solid var(--card-border)", background: "#fffbeb" }}>
+          <div className="w-2/5 shrink-0 p-5" style={{ borderRight: "1px solid var(--card-border)", background: "#fffbeb" }}>
             <div className="flex items-center gap-2 mb-3">
               <ArrowDownRight size={11} style={{ color: "#92400e" }} />
               <span className="text-xs font-bold tracking-wider" style={{ color: "#92400e" }}>INPUT</span>
-              <span className="text-xs font-mono ml-auto" style={{ color: "#a16207" }}>
+              <span className="text-xs font-mono ml-auto px-2 py-0.5 rounded" style={{ background: "#fef3c7", color: "#a16207" }}>
                 {currentTurn.input.content.length.toLocaleString()} chars
               </span>
             </div>
-            <ExpandableContent content={currentTurn.input.content} renderAs="mono" thresholdChars={800} />
+            <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.6)", border: "1px solid #fde68a" }}>
+              <ExpandableContent content={currentTurn.input.content} renderAs="mono" thresholdChars={800} />
+            </div>
           </div>
         ) : (
           <div className="w-2/5 shrink-0 flex items-center justify-center py-12" style={{ borderRight: "1px solid var(--card-border)", background: "#fafafa" }}>
             <div className="text-center">
               <Inbox size={20} className="mx-auto mb-2" style={{ color: "var(--muted-light)" }} />
-              <p className="text-xs" style={{ color: "var(--muted-light)" }}>No input captured</p>
-              <p className="text-xs mt-1" style={{ color: "var(--muted-light)", fontSize: 10 }}>Run a new task to see agent inputs</p>
+              <p className="text-xs font-medium" style={{ color: "var(--muted-light)" }}>No input captured</p>
+              <p className="text-xs mt-1" style={{ color: "var(--muted-light)", fontSize: 10 }}>Input saved for new tasks only</p>
             </div>
           </div>
         )}
 
         {/* OUTPUT panel */}
-        <div className="flex-1 p-5">
+        <div className="flex-1 p-5" style={{ background: "var(--card)" }}>
           <div className="flex items-center gap-2 mb-3">
             <Bot size={11} style={{ color }} />
             <span className="text-xs font-bold tracking-wider" style={{ color }}>OUTPUT</span>
             {currentTurn?.output && (
-              <span className="text-xs font-mono ml-auto" style={{ color: "var(--muted)" }}>
+              <span className="text-xs font-mono ml-auto px-2 py-0.5 rounded" style={{ background: `${color}12`, color }}>
                 {currentTurn.output.content.length.toLocaleString()} chars
               </span>
             )}
           </div>
           {currentTurn?.output ? (
-            <ExpandableContent content={currentTurn.output.content} renderAs="markdown" thresholdChars={1200} />
+            <div className="rounded-xl p-4" style={{ background: "var(--background, #fff)", border: "1px solid var(--card-border)" }}>
+              <ExpandableContent content={currentTurn.output.content} renderAs="markdown" thresholdChars={1200} />
+            </div>
           ) : (
             <div className="flex flex-col items-center justify-center py-12 gap-3">
               {node.isActive ? (
@@ -636,7 +640,14 @@ export default function ProjectsPage() {
   const selectedPreset = allPresets.find(p => p.id === selectedPresetId);
   const taskPreset = allPresets.find(p => p.id === selectedTask?.preset_id);
 
-  const allMessages = [...messages, ...liveEvents];
+  // Only include live events for agents not yet persisted to DB.
+  // This prevents short WS preview strings ("3 steps planned") from
+  // overriding the real full output that was already saved to the DB.
+  const rolesWithDbOutput = new Set(
+    messages.filter(m => m.type === "agent_output").map(m => m.agent_role)
+  );
+  const filteredLive = liveEvents.filter(e => !rolesWithDbOutput.has(e.agent_role));
+  const allMessages = [...messages, ...filteredLive];
   const pipeline = buildPipeline(allMessages);
 
   // Auto-select last active node when pipeline populates (only if nothing is selected)
@@ -650,7 +661,7 @@ export default function ProjectsPage() {
   const selectedNode = pipeline.find(n => n.role === selectedAgent);
 
   return (
-    <div className="flex flex-col min-h-full">
+    <div className="flex flex-col h-full">
       {/* ── Header ── */}
       <div className="px-4 sm:px-8 lg:px-10 pt-8 pb-4 border-b shrink-0" style={{ borderColor: "var(--card-border)" }}>
         <div className="mb-4">
