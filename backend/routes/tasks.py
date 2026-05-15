@@ -182,7 +182,7 @@ async def _run_graph(task_id: str, goal: str, output_task_id: str | None = None,
             web_ctx = await fetch_web_context(goal[:300])
             if web_ctx:
                 goal = web_ctx + "\n\n---\n\n## Task\n" + goal
-                print(f"[web_search] Injected web context for task {task_id}")
+                print(f"[web_search] Injected {len(web_ctx)} chars of web context for task {task_id}")
         except Exception as e:
             print(f"[web_search] Failed to fetch context: {e}")
 
