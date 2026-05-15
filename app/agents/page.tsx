@@ -383,9 +383,11 @@ export default function AgentsPage() {
     // Merge API presets (source of truth) into local state
     fetchPresetsFromAPI().then(remote => {
       if (!remote.length) return;
-      const merged = [...remote, ...local.filter(p => !remote.find(r => r.id === p.id))];
-      setCustomPresets(merged);
-      saveCustomPresets(merged);
+      const builtinIds = new Set(BUILTIN_PRESETS.map(p => p.id));
+      const customOnly = [...remote, ...local.filter(p => !remote.find(r => r.id === p.id))]
+        .filter(p => !builtinIds.has(p.id));
+      setCustomPresets(customOnly);
+      saveCustomPresets(customOnly);
     });
   }, []);
 

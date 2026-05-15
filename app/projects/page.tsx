@@ -568,10 +568,13 @@ export default function ProjectsPage() {
     const iv = setInterval(fetchTasks, 5000);
     fetchPresetsFromAPI().then(remote => {
       if (!remote.length) return;
+      const builtinIds = new Set(BUILTIN_PRESETS.map(p => p.id));
       const local = loadCustomPresets();
-      const merged = [...remote, ...local.filter(p => !remote.find((r: Preset) => r.id === p.id))];
-      saveCustomPresets(merged);
-      setAllPresets([...BUILTIN_PRESETS, ...merged]);
+      // Exclude any remote/local preset whose id matches a built-in (avoids duplicates)
+      const customOnly = [...remote, ...local.filter(p => !remote.find((r: Preset) => r.id === p.id))]
+        .filter(p => !builtinIds.has(p.id));
+      saveCustomPresets(customOnly);
+      setAllPresets([...BUILTIN_PRESETS, ...customOnly]);
     });
     return () => clearInterval(iv);
   }, []);
