@@ -172,6 +172,34 @@ async def put_task_file(task_id: str, file_path: str, request: Request):
 
 
 async def _run_graph(task_id: str, goal: str, output_task_id: str | None = None, preset_id: str | None = None):
+    # ── Custom preset: fetch from DB and run dynamically ──────────
+    _builtin_ids = {"software-dev", "legal-review", "investment-analysis",
+                    "research-intelligence", "content-marketing", "academic-review"}
+    if preset_id and preset_id not in _builtin_ids:
+        from orchestrator.custom_graph import fetch_preset_from_db, run_custom_preset
+        preset_data = await fetch_preset_from_db(preset_id)
+        if preset_data:
+            try:
+                await run_custom_preset(task_id, goal, preset_data)
+            except asyncio.CancelledError:
+                pass
+            except Exception as e:
+                import traceback
+                print(f"[custom_graph ERROR] task={task_id} preset={preset_id}\n{traceback.format_exc()}")
+                await broadcast(task_id, {"type": "error", "agent": "system", "content": str(e)})
+                pool = get_pool()
+                async with pool.acquire() as conn:
+                    await conn.execute(
+                        "UPDATE tasks SET status='failed', updated_at=NOW() WHERE id=$1",
+                        uuid.UUID(task_id),
+                    )
+            finally:
+                _running_tasks.pop(task_id, None)
+                from streaming import unregister_stream
+                unregister_stream(task_id)
+            return
+        # If preset not found in DB, fall through to software-dev graph
+
     graph = _get_graph(preset_id)
 
     if preset_id == "legal-review":
