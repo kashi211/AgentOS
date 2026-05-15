@@ -127,20 +127,20 @@ const phases: Phase[] = [
   {
     phase: 8,
     title: "Production & Scale",
-    subtitle: "Auth, reliability, long-term memory, streaming",
+    subtitle: "Auth, streaming, memory, storage, parallelism",
     color: "#64748b",
-    status: "active",
+    status: "done",
     tasks: [
       { name: "Vercel deployment with clean ESLint build", status: "done" },
       { name: "CORS fix for all localhost ports (allow_origin_regex)", status: "done" },
       { name: "Sticky sidebar scroll without locking full page height", status: "done" },
       { name: "Duplicate preset deduplication (by ID and name)", status: "done" },
-      { name: "User auth + per-user task isolation", status: "todo" },
-      { name: "Streaming token output (real-time text as agents write)", status: "todo" },
-      { name: "Task cancellation", status: "todo" },
-      { name: "Pinecone long-term semantic memory across tasks", status: "todo" },
-      { name: "Cloudflare R2 artefact storage (replace local filesystem)", status: "todo" },
-      { name: "Agent parallelism: run independent nodes concurrently", status: "todo" },
+      { name: "User auth: JWT (72h, HS256) + bcrypt; /auth/register, /auth/login, /auth/me", status: "done", detail: "Per-user task isolation — tasks scoped to user_id when Bearer token provided" },
+      { name: "Streaming token output: messages.stream() → WS {type:'token'} → live AgentDetail", status: "done", detail: "Global stream registry keyed by task_id; unregistered in finally block" },
+      { name: "Task cancellation: asyncio.Task registry + POST /tasks/{id}/cancel + UI cancel button", status: "done" },
+      { name: "Pinecone long-term semantic memory: multilingual-e5-large (1024-dim, hosted inference)", status: "done", detail: "Top-3 memories retrieved before each run; output upserted after. Graceful no-op without API key." },
+      { name: "Cloudflare R2 artefact storage: boto3 S3-compatible client with local filesystem fallback", status: "done" },
+      { name: "Agent parallelism: asyncio.gather for independent nodes (SEO + Brand Voice in content graph)", status: "done" },
     ],
   },
 ];
@@ -170,7 +170,7 @@ export default function PlanPage() {
           {[
             { label: "Phases complete", value: `${donePhases}/${phases.length}`, color: "#059669" },
             { label: "Tasks complete", value: `${doneTasks}/${totalTasks}`, color: "#4f46e5" },
-            { label: "Agents built", value: "20+", color: "#7c3aed" },
+            { label: "Agents built", value: "22+", color: "#7c3aed" },
           ].map(({ label, value, color }) => (
             <div key={label}>
               <p className="text-xl font-bold" style={{ color }}>{value}</p>
