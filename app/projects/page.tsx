@@ -4,23 +4,20 @@ import { useEffect, useRef, useState } from "react";
 import {
   Send, Loader2, CheckCircle2, XCircle, Clock, RefreshCw,
   ExternalLink, Code2, Search, TrendingUp, Scale, Megaphone,
-  BookOpen, Layers, Bot,
-  BarChart3, ShieldCheck, FlaskConical, ScrollText, Lightbulb,
-  ArrowRight, CircleDot, Sparkles, Terminal, ChevronDown, ChevronUp,
-  MessageSquare, ArrowDownRight,
+  BookOpen, Layers, Bot, BarChart3, ShieldCheck, FlaskConical,
+  ScrollText, Lightbulb, ArrowRight, CircleDot, Terminal,
+  ArrowDownRight, ChevronRight, RotateCcw, Inbox,
 } from "lucide-react";
 import Link from "next/link";
 import { BUILTIN_PRESETS, loadCustomPresets, saveCustomPresets, loadActivePresetId, fetchPresetsFromAPI, type Preset } from "@/lib/presets";
 
 /* ─── API config ─────────────────────────────────────────── */
-
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 const WS  = process.env.NEXT_PUBLIC_WS_URL  ?? "ws://localhost:8000";
 
 /* ─── Types ──────────────────────────────────────────────── */
-
 type TaskStatus = "pending" | "planning" | "executing" | "reviewing" | "done" | "failed";
-type ViewMode = "story" | "raw";
+type ViewMode = "pipeline" | "raw";
 
 interface Task {
   id: string;
@@ -45,15 +42,24 @@ interface LiveEvent {
   content: string;
 }
 
-/* ─── Preset category icons ──────────────────────────────── */
+interface AgentTurn {
+  turnIndex: number;
+  input: Message | null;
+  output: Message | null;
+}
 
+interface PipelineNode {
+  role: string;
+  turns: AgentTurn[];
+  isActive: boolean;    // currently producing output
+  hasFailed: boolean;   // at least one qa_fail turn
+}
+
+/* ─── Constants ──────────────────────────────────────────── */
 const PRESET_ICONS: Record<string, React.ElementType> = {
-  "software-dev": Code2,
-  "research-intelligence": Search,
-  "investment-analysis": TrendingUp,
-  "legal-review": Scale,
-  "content-marketing": Megaphone,
-  "academic-review": BookOpen,
+  "software-dev": Code2, "research-intelligence": Search,
+  "investment-analysis": TrendingUp, "legal-review": Scale,
+  "content-marketing": Megaphone, "academic-review": BookOpen,
 };
 
 const AGENT_COLORS: Record<string, string> = {
@@ -65,279 +71,345 @@ const AGENT_COLORS: Record<string, string> = {
   protection_checker: "#7c3aed", legal_editor: "#d97706",
   content_writer: "#ec4899", seo_agent: "#0284c7", brand_voice: "#7c3aed",
   content_editor: "#d97706", summarizer: "#7c3aed", critic: "#dc2626",
-  literature_synthesizer: "#059669", citation_agent: "#64748b",
-  system: "#64748b",
+  literature_synthesizer: "#059669", citation_agent: "#64748b", system: "#64748b",
 };
+function agentColor(role: string) { return AGENT_COLORS[role.toLowerCase().replace(/ /g,"_")] ?? "#64748b"; }
 
-function agentColor(role: string): string {
-  const key = role.toLowerCase().replace(/ /g, "_");
-  return AGENT_COLORS[key] ?? "#64748b";
-}
-
-const STATUS_CONFIG: Record<TaskStatus, { label: string; color: string; spin?: boolean }> = {
+const STATUS_CFG: Record<TaskStatus, { label: string; color: string }> = {
   pending:   { label: "Pending",   color: "#94a3b8" },
-  planning:  { label: "Planning",  color: "#4f46e5", spin: true },
-  executing: { label: "Executing", color: "#0284c7", spin: true },
-  reviewing: { label: "Reviewing", color: "#d97706", spin: true },
+  planning:  { label: "Planning",  color: "#4f46e5" },
+  executing: { label: "Executing", color: "#0284c7" },
+  reviewing: { label: "Reviewing", color: "#d97706" },
   done:      { label: "Done",      color: "#059669" },
   failed:    { label: "Failed",    color: "#dc2626" },
 };
+const isActive = (s: TaskStatus) => ["planning","executing","reviewing"].includes(s);
 
-/* ─── Simple markdown renderer ───────────────────────────── */
+/* ─── Build pipeline from message list ───────────────────── */
+function buildPipeline(messages: Message[]): PipelineNode[] {
+  const order: string[] = [];
+  const byRole: Record<string, Message[]> = {};
 
-function renderInline(text: string): React.ReactNode[] {
-  const parts = text.split(/(\*\*[^*\n]+\*\*|\*[^*\n]+\*|`[^`\n]+`)/g);
-  return parts.map((part, i) => {
-    if (part.startsWith("**") && part.endsWith("**"))
-      return <strong key={i} className="font-semibold">{part.slice(2, -2)}</strong>;
-    if (part.startsWith("*") && part.endsWith("*"))
-      return <em key={i}>{part.slice(1, -1)}</em>;
-    if (part.startsWith("`") && part.endsWith("`"))
-      return <code key={i} className="px-1 py-0.5 rounded text-xs font-mono" style={{ background: "rgba(0,0,0,0.07)" }}>{part.slice(1, -1)}</code>;
-    return part;
+  for (const m of messages) {
+    if (!order.includes(m.agent_role)) order.push(m.agent_role);
+    (byRole[m.agent_role] ??= []).push(m);
+  }
+
+  return order.map(role => {
+    const msgs = byRole[role];
+    const turns: AgentTurn[] = [];
+    let i = 0;
+    while (i < msgs.length) {
+      const a = msgs[i];
+      const b = msgs[i + 1];
+      if (a?.type === "agent_input") {
+        turns.push({ turnIndex: turns.length, input: a, output: b?.type === "agent_output" ? b : null });
+        i += b?.type === "agent_output" ? 2 : 1;
+      } else if (a?.type === "agent_output") {
+        turns.push({ turnIndex: turns.length, input: null, output: a });
+        i += 1;
+      } else {
+        // legacy "output" type
+        turns.push({ turnIndex: turns.length, input: null, output: a });
+        i += 1;
+      }
+    }
+    const lastTurn = turns[turns.length - 1];
+    return {
+      role,
+      turns,
+      isActive: !!lastTurn && !lastTurn.output && !!lastTurn.input,
+      hasFailed: msgs.some(m => m.type === "qa_fail"),
+    };
   });
 }
 
-function MarkdownContent({ content, compact = false }: { content: string; compact?: boolean }) {
+/* ─── Markdown renderer ──────────────────────────────────── */
+function renderInline(text: string): React.ReactNode[] {
+  return text.split(/(\*\*[^*\n]+\*\*|\*[^*\n]+\*|`[^`\n]+`)/g).map((p, i) => {
+    if (p.startsWith("**") && p.endsWith("**")) return <strong key={i}>{p.slice(2,-2)}</strong>;
+    if (p.startsWith("*") && p.endsWith("*"))   return <em key={i}>{p.slice(1,-1)}</em>;
+    if (p.startsWith("`") && p.endsWith("`"))   return <code key={i} className="px-1 rounded text-xs font-mono" style={{background:"rgba(0,0,0,0.07)"}}>{p.slice(1,-1)}</code>;
+    return p;
+  });
+}
+
+function MarkdownContent({ content }: { content: string }) {
   const lines = content.split("\n");
   const nodes: React.ReactNode[] = [];
-  let i = 0;
-  let inCodeBlock = false;
-  let codeLines: string[] = [];
-
+  let i = 0, inCode = false, codeLines: string[] = [];
   while (i < lines.length) {
-    const raw = lines[i];
-    const line = raw;
-
-    // Code block fence
+    const line = lines[i];
     if (line.trim().startsWith("```")) {
-      if (!inCodeBlock) {
-        inCodeBlock = true;
-        codeLines = [];
-      } else {
-        inCodeBlock = false;
-        nodes.push(
-          <pre key={`code-${i}`} className="rounded-xl px-4 py-3 text-xs font-mono overflow-x-auto my-2 leading-relaxed" style={{ background: "rgba(0,0,0,0.06)", color: "var(--foreground)" }}>
-            {codeLines.join("\n")}
-          </pre>
-        );
+      if (!inCode) { inCode = true; codeLines = []; }
+      else {
+        inCode = false;
+        nodes.push(<pre key={i} className="rounded-xl px-4 py-3 text-xs font-mono overflow-x-auto my-3 leading-relaxed" style={{background:"rgba(0,0,0,0.05)"}}>{codeLines.join("\n")}</pre>);
       }
       i++; continue;
     }
-    if (inCodeBlock) { codeLines.push(raw); i++; continue; }
-
-    // Headings
-    if (line.startsWith("### ")) {
-      nodes.push(<h3 key={i} className={`font-bold ${compact ? "text-xs mt-3 mb-1" : "text-sm mt-5 mb-2"}`} style={{ color: "var(--foreground)" }}>{renderInline(line.slice(4))}</h3>);
-    } else if (line.startsWith("## ")) {
-      nodes.push(<h2 key={i} className={`font-bold ${compact ? "text-sm mt-4 mb-1" : "text-base mt-6 mb-2"}`} style={{ color: "var(--foreground)" }}>{renderInline(line.slice(3))}</h2>);
-    } else if (line.startsWith("# ")) {
-      nodes.push(<h1 key={i} className={`font-bold ${compact ? "text-base mt-4 mb-1" : "text-lg mt-6 mb-2"}`} style={{ color: "var(--foreground)" }}>{renderInline(line.slice(2))}</h1>);
-    }
-    // Horizontal rule
-    else if (line.trim().match(/^-{3,}$|^\*{3,}$/) ) {
-      nodes.push(<hr key={i} className="my-3" style={{ borderColor: "var(--card-border)" }} />);
-    }
-    // Bullet list
+    if (inCode) { codeLines.push(line); i++; continue; }
+    if (line.startsWith("### "))      nodes.push(<h3 key={i} className="font-bold text-sm mt-5 mb-1.5" style={{color:"var(--foreground)"}}>{renderInline(line.slice(4))}</h3>);
+    else if (line.startsWith("## ")) nodes.push(<h2 key={i} className="font-bold text-base mt-6 mb-2" style={{color:"var(--foreground)"}}>{renderInline(line.slice(3))}</h2>);
+    else if (line.startsWith("# "))  nodes.push(<h1 key={i} className="font-bold text-lg mt-6 mb-2" style={{color:"var(--foreground)"}}>{renderInline(line.slice(2))}</h1>);
+    else if (line.trim().match(/^---+$/)) nodes.push(<hr key={i} className="my-4" style={{borderColor:"var(--card-border)"}}/>);
     else if (line.trim().match(/^[-*•]\s/)) {
       const depth = line.search(/\S/);
-      const text = line.trim().slice(2);
-      nodes.push(
-        <div key={i} className="flex gap-2 my-0.5" style={{ paddingLeft: depth > 0 ? `${depth * 4}px` : undefined }}>
-          <span className="mt-1 shrink-0 w-1.5 h-1.5 rounded-full" style={{ background: "var(--accent)", marginTop: compact ? "5px" : "7px" }} />
-          <span className={compact ? "text-xs leading-relaxed" : "text-sm leading-relaxed"} style={{ color: "var(--foreground)" }}>{renderInline(text)}</span>
-        </div>
-      );
-    }
-    // Numbered list
-    else if (line.trim().match(/^\d+\.\s/)) {
-      const num = line.trim().match(/^(\d+)\.\s(.*)/)!;
-      nodes.push(
-        <div key={i} className="flex gap-2 my-0.5">
-          <span className={`font-bold shrink-0 ${compact ? "text-xs" : "text-sm"}`} style={{ color: "var(--accent)", minWidth: "16px" }}>{num[1]}.</span>
-          <span className={compact ? "text-xs leading-relaxed" : "text-sm leading-relaxed"} style={{ color: "var(--foreground)" }}>{renderInline(num[2])}</span>
-        </div>
-      );
-    }
-    // Empty line
-    else if (line.trim() === "") {
-      nodes.push(<div key={i} className={compact ? "h-1.5" : "h-3"} />);
-    }
-    // Table row (basic)
-    else if (line.trim().startsWith("|")) {
-      nodes.push(
-        <div key={i} className={`font-mono ${compact ? "text-xs" : "text-sm"} leading-relaxed`} style={{ color: "var(--foreground)" }}>
-          {line}
-        </div>
-      );
-    }
-    // Regular paragraph
-    else {
-      nodes.push(
-        <p key={i} className={`${compact ? "text-xs" : "text-sm"} leading-relaxed`} style={{ color: "var(--foreground)" }}>
-          {renderInline(line)}
-        </p>
-      );
-    }
+      nodes.push(<div key={i} className="flex gap-2 my-0.5" style={{paddingLeft: depth > 0 ? `${depth*6}px` : undefined}}>
+        <span className="shrink-0 w-1.5 h-1.5 rounded-full mt-[7px]" style={{background:"var(--accent)"}}/>
+        <span className="text-sm leading-relaxed" style={{color:"var(--foreground)"}}>{renderInline(line.trim().slice(2))}</span>
+      </div>);
+    } else if (line.trim().match(/^\d+\.\s/)) {
+      const [,num,rest] = line.trim().match(/^(\d+)\.\s(.*)/) ?? [];
+      nodes.push(<div key={i} className="flex gap-2 my-0.5"><span className="font-bold text-sm shrink-0" style={{color:"var(--accent)",minWidth:18}}>{num}.</span><span className="text-sm leading-relaxed" style={{color:"var(--foreground)"}}>{renderInline(rest)}</span></div>);
+    } else if (line.trim() === "") nodes.push(<div key={i} className="h-3"/>);
+    else nodes.push(<p key={i} className="text-sm leading-relaxed" style={{color:"var(--foreground)"}}>{renderInline(line)}</p>);
     i++;
   }
-
   return <div>{nodes}</div>;
 }
 
-/* ─── Helper: extract quality report from messages ────────── */
-
-interface QualityReport {
-  reviewer: string;
-  score?: number;
-  verdict: "pass" | "fail" | "unknown";
-  findings: string[];
-  revisions: number;
-}
-
-function extractQualityReport(messages: Message[]): QualityReport | null {
-  const reviewRoles = ["qa", "fact_checker", "critic", "clause_flagger", "protection_checker", "bear_case"];
-  const reviewMessages = messages.filter(m => reviewRoles.includes(m.agent_role) && m.type === "agent_output");
-  if (reviewMessages.length === 0) return null;
-
-  const revisions = messages.filter(m => m.agent_role === "qa" || m.agent_role === "critic").length;
-  const lastReview = reviewMessages[reviewMessages.length - 1];
-  const content = lastReview.content;
-
-  const scoreMatch = content.match(/score[:\s]+(\d+(?:\.\d+)?)/i) ||
-    content.match(/(\d+(?:\.\d+)?)\s*\/\s*10/i) ||
-    content.match(/(\d+(?:\.\d+)?)\s*out of\s*10/i);
-  const score = scoreMatch ? parseFloat(scoreMatch[1]) : undefined;
-
-  const verdict = content.toLowerCase().includes('"passed": true') || content.toLowerCase().includes("pass")
-    ? "pass"
-    : content.toLowerCase().includes('"passed": false') || content.toLowerCase().includes("fail")
-    ? "fail"
-    : score !== undefined ? (score >= 7 ? "pass" : "fail")
-    : "unknown";
-
-  const findings = content
-    .split("\n")
-    .filter(l => l.trim().match(/^[-•*]/))
-    .map(l => l.trim().replace(/^[-•*]\s*/, ""))
-    .filter(l => l.length > 0)
-    .slice(0, 5);
-
-  return { reviewer: lastReview.agent_role.replace(/_/g, " "), score, verdict, findings, revisions };
-}
-
-/* ─── Helper: extract final deliverable from messages ─────── */
-
-function extractDeliverable(messages: Message[]): Message | null {
-  const deliverableRoles = ["writer", "editor", "synthesizer", "legal_editor", "content_editor", "literature_synthesizer", "citation_agent"];
-  const deliverables = messages.filter(m => deliverableRoles.includes(m.agent_role) && m.type === "agent_output");
-  return deliverables[deliverables.length - 1] ?? null;
-}
-
-/* ─── Preset selector ────────────────────────────────────── */
-
-function PresetSelector({ presets, selected, onSelect }: {
-  presets: Preset[];
-  selected: string;
-  onSelect: (id: string) => void;
+/* ─── Pipeline node card ─────────────────────────────────── */
+function PipelineNodeCard({ node, selected, onClick }: {
+  node: PipelineNode; selected: boolean; onClick: () => void;
 }) {
+  const color = agentColor(node.role);
+  const totalOutput = node.turns.reduce((sum, t) => sum + (t.output?.content.length ?? 0), 0);
+  const hasOutput = totalOutput > 0;
+
   return (
-    <div className="flex items-center gap-2 flex-wrap">
-      {presets.map(p => {
-        const Icon = PRESET_ICONS[p.id] ?? Layers;
-        const active = p.id === selected;
-        return (
-          <button
-            key={p.id}
-            onClick={() => onSelect(p.id)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
-            style={{
-              background: active ? p.categoryColor : "var(--card)",
-              color: active ? "#fff" : "var(--muted)",
-              border: active ? "none" : "1px solid var(--card-border)",
-              boxShadow: active ? `0 2px 8px ${p.categoryColor}40` : "none",
-            }}
-          >
-            <Icon size={12} />
-            {p.name}
-          </button>
-        );
-      })}
+    <button
+      onClick={onClick}
+      className="relative flex flex-col items-center gap-2 shrink-0 group"
+      style={{ minWidth: 110 }}
+    >
+      {/* Node circle */}
+      <div
+        className="w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-200"
+        style={{
+          background: selected ? color : `${color}12`,
+          border: `2px solid ${selected ? color : `${color}30`}`,
+          boxShadow: selected ? `0 0 0 4px ${color}20, 0 4px 16px ${color}30` : node.isActive ? `0 0 0 3px ${color}20` : "none",
+        }}
+      >
+        <Bot size={22} style={{ color: selected ? "#fff" : color }} />
+        {node.isActive && (
+          <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-white animate-pulse" style={{ background: "#0284c7" }} />
+        )}
+        {node.turns.length > 1 && !node.isActive && (
+          <span className="absolute -top-1.5 -right-1.5 text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center" style={{ background: color, color: "#fff", fontSize: 9 }}>
+            ×{node.turns.length}
+          </span>
+        )}
+      </div>
+
+      {/* Label */}
+      <div className="text-center">
+        <p className="text-xs font-bold capitalize leading-tight" style={{ color: selected ? color : "var(--foreground)" }}>
+          {node.role.replace(/_/g, " ")}
+        </p>
+        <p className="text-xs mt-0.5" style={{ color: "var(--muted-light)", fontSize: 10 }}>
+          {node.isActive ? "Working…" : hasOutput ? `${Math.round(totalOutput / 1000)}k chars` : "—"}
+        </p>
+      </div>
+
+      {/* Bottom dot indicator */}
+      <div className="w-2 h-2 rounded-full" style={{ background: node.isActive ? "#0284c7" : hasOutput ? "#059669" : "var(--card-border)" }} />
+    </button>
+  );
+}
+
+/* ─── Pipeline graph ─────────────────────────────────────── */
+function PipelineGraph({ nodes, selected, onSelect, taskStatus }: {
+  nodes: PipelineNode[];
+  selected: string | null;
+  onSelect: (role: string) => void;
+  taskStatus: TaskStatus;
+}) {
+  if (nodes.length === 0) return (
+    <div className="flex items-center justify-center gap-2 py-8" style={{ borderBottom: "1px solid var(--card-border)" }}>
+      <Loader2 size={16} className="animate-spin" style={{ color: "var(--accent)" }} />
+      <span className="text-sm" style={{ color: "var(--muted)" }}>Agents starting up…</span>
+    </div>
+  );
+
+  return (
+    <div className="px-6 py-5 overflow-x-auto" style={{ borderBottom: "1px solid var(--card-border)", background: "var(--card)" }}>
+      <div className="flex items-start gap-0 w-max mx-auto">
+        {nodes.map((node, i) => (
+          <div key={node.role} className="flex items-center gap-0">
+            <PipelineNodeCard node={node} selected={selected === node.role} onClick={() => onSelect(node.role)} />
+            {i < nodes.length - 1 && (
+              <div className="flex flex-col items-center mx-1 mt-[-20px]">
+                {/* Arrow */}
+                <div className="flex items-center gap-0" style={{ color: "var(--card-border)" }}>
+                  <div className="h-px w-6" style={{ background: "var(--card-border)" }} />
+                  <ChevronRight size={12} style={{ color: "var(--muted-light)" }} />
+                </div>
+                {/* Revision back-arrow if next node has multiple turns */}
+                {nodes[i + 1]?.turns.length > 1 && (
+                  <div className="flex items-center gap-1 mt-1" style={{ color: "var(--muted-light)" }}>
+                    <RotateCcw size={9} />
+                    <span style={{ fontSize: 8, color: "var(--muted-light)" }}>revised</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+      {/* Pipeline status bar */}
+      <div className="mt-4 flex items-center justify-center gap-4">
+        <div className="flex items-center gap-1.5">
+          <div className="w-2 h-2 rounded-full" style={{ background: "#059669" }} />
+          <span className="text-xs" style={{ color: "var(--muted)" }}>Complete</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: "#0284c7" }} />
+          <span className="text-xs" style={{ color: "var(--muted)" }}>Running</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-2 h-2 rounded-full" style={{ background: "var(--card-border)" }} />
+          <span className="text-xs" style={{ color: "var(--muted)" }}>Pending</span>
+        </div>
+        {nodes.some(n => n.turns.length > 1) && (
+          <div className="flex items-center gap-1.5">
+            <RotateCcw size={10} style={{ color: "var(--muted)" }} />
+            <span className="text-xs" style={{ color: "var(--muted)" }}>×N = revision cycles</span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-/* ─── Story view: beautiful agent conversation cards ─────── */
+/* ─── Agent detail: split INPUT / OUTPUT panel ───────────── */
+function AgentDetail({ node, allNodes }: { node: PipelineNode; allNodes: PipelineNode[] }) {
+  const [turn, setTurn] = useState(node.turns.length - 1);
+  const color = agentColor(node.role);
 
-function AgentConversationCard({ msg, isLast }: { msg: Message; isLast: boolean }) {
-  const [expanded, setExpanded] = useState(true);
-  const color = agentColor(msg.agent_role);
-  const isLong = msg.content.length > 800;
-  const isInput = msg.type === "agent_input";
+  // Reset to latest turn when node changes
+  useEffect(() => { setTurn(node.turns.length - 1); }, [node.role, node.turns.length]);
 
-  if (isInput) return null; // Story view only shows outputs
+  const currentTurn = node.turns[turn] ?? node.turns[0];
 
   return (
-    <div className="relative flex gap-4">
-      {/* Connector line to next card */}
-      {!isLast && (
-        <div className="absolute left-5 top-11 bottom-0 w-px" style={{ background: `linear-gradient(to bottom, ${color}40, transparent)` }} />
-      )}
-
-      {/* Avatar */}
-      <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 z-10 mt-0.5" style={{ background: `${color}12`, border: `2px solid ${color}30` }}>
-        <Bot size={16} style={{ color }} />
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 min-w-0 pb-8">
-        {/* Agent header */}
-        <div className="flex items-center gap-2 mb-3">
-          <span className="font-bold text-sm capitalize" style={{ color }}>
-            {msg.agent_role.replace(/_/g, " ")}
-          </span>
-          <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: `${color}12`, color }}>
-            {msg.type === "qa_pass" ? "✓ passed" : msg.type === "qa_fail" ? "✗ failed" : msg.type.replace(/_/g, " ")}
-          </span>
-          {msg.isLive && (
-            <span className="flex items-center gap-1.5 text-xs font-medium animate-pulse" style={{ color: "var(--accent)" }}>
-              <span className="w-1.5 h-1.5 rounded-full bg-current" />
-              Working…
+    <div className="flex-1 flex flex-col min-h-0">
+      {/* Agent detail header */}
+      <div className="px-6 py-3 flex items-center justify-between gap-4 shrink-0" style={{ borderBottom: "1px solid var(--card-border)" }}>
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${color}15`, border: `2px solid ${color}30` }}>
+            <Bot size={15} style={{ color }} />
+          </div>
+          <div>
+            <span className="font-bold text-sm capitalize" style={{ color }}>{node.role.replace(/_/g, " ")}</span>
+            {node.turns.length > 1 && (
+              <span className="text-xs ml-2 font-medium" style={{ color: "var(--muted)" }}>
+                {node.turns.length} revision{node.turns.length > 1 ? "s" : ""}
+              </span>
+            )}
+          </div>
+          {node.isActive && (
+            <span className="flex items-center gap-1.5 text-xs font-semibold animate-pulse" style={{ color: "#0284c7" }}>
+              <span className="w-1.5 h-1.5 rounded-full bg-current" />Working…
             </span>
           )}
         </div>
 
-        {/* Message bubble */}
-        <div className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${color}20`, background: `${color}05` }}>
-          <div className={`px-5 py-4 ${isLong && !expanded ? "max-h-72 overflow-hidden relative" : ""}`}>
-            <MarkdownContent content={msg.content} />
-            {isLong && !expanded && (
-              <div className="absolute bottom-0 left-0 right-0 h-20 pointer-events-none" style={{ background: `linear-gradient(to bottom, transparent, ${color}06 80%, ${color}10)` }} />
+        {/* Turn selector */}
+        {node.turns.length > 1 && (
+          <div className="flex items-center gap-1 p-0.5 rounded-lg" style={{ background: "var(--card)", border: "1px solid var(--card-border)" }}>
+            {node.turns.map((t, i) => (
+              <button
+                key={i}
+                onClick={() => setTurn(i)}
+                className="text-xs px-3 py-1.5 rounded-md font-semibold transition-all"
+                style={{
+                  background: turn === i ? color : "transparent",
+                  color: turn === i ? "#fff" : "var(--muted)",
+                }}
+              >
+                Turn {i + 1}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Split pane: INPUT left, OUTPUT right */}
+      <div className="flex-1 flex min-h-0">
+
+        {/* INPUT panel */}
+        {currentTurn?.input ? (
+          <div className="w-2/5 flex flex-col min-h-0 shrink-0" style={{ borderRight: "1px solid var(--card-border)" }}>
+            <div className="px-4 py-2.5 flex items-center gap-2 shrink-0" style={{ borderBottom: "1px solid var(--card-border)", background: "#fffbeb" }}>
+              <ArrowDownRight size={11} style={{ color: "#92400e" }} />
+              <span className="text-xs font-bold tracking-wider" style={{ color: "#92400e" }}>INPUT</span>
+              <span className="text-xs font-mono ml-auto" style={{ color: "#a16207" }}>
+                {currentTurn.input.content.length.toLocaleString()} chars
+              </span>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              <pre className="text-xs font-mono leading-relaxed whitespace-pre-wrap break-words" style={{ color: "var(--muted)", fontFamily: "var(--font-mono, monospace)" }}>
+                {currentTurn.input.content}
+              </pre>
+            </div>
+          </div>
+        ) : (
+          <div className="w-2/5 flex flex-col min-h-0 shrink-0" style={{ borderRight: "1px solid var(--card-border)", background: "#fafafa" }}>
+            <div className="px-4 py-2.5 flex items-center gap-2 shrink-0" style={{ borderBottom: "1px solid var(--card-border)" }}>
+              <ArrowDownRight size={11} style={{ color: "var(--muted-light)" }} />
+              <span className="text-xs font-bold tracking-wider" style={{ color: "var(--muted-light)" }}>INPUT</span>
+            </div>
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-center">
+                <Inbox size={20} className="mx-auto mb-2" style={{ color: "var(--muted-light)" }} />
+                <p className="text-xs" style={{ color: "var(--muted-light)" }}>No input captured</p>
+                <p className="text-xs mt-1" style={{ color: "var(--muted-light)", fontSize: 10 }}>Run a new task to see agent inputs</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* OUTPUT panel */}
+        <div className="flex-1 flex flex-col min-h-0">
+          <div className="px-4 py-2.5 flex items-center gap-2 shrink-0" style={{ borderBottom: "1px solid var(--card-border)", background: `${color}06` }}>
+            <Bot size={11} style={{ color }} />
+            <span className="text-xs font-bold tracking-wider" style={{ color }}>OUTPUT</span>
+            {currentTurn?.output && (
+              <span className="text-xs font-mono ml-auto" style={{ color: "var(--muted)" }}>
+                {currentTurn.output.content.length.toLocaleString()} chars
+              </span>
             )}
           </div>
-          {isLong && (
-            <button
-              onClick={() => setExpanded(e => !e)}
-              className="w-full flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold border-t transition-all"
-              style={{ borderColor: `${color}15`, color, background: `${color}06` }}
-            >
-              {expanded ? <><ChevronUp size={12} /> Collapse</> : <><ChevronDown size={12} /> Show full response</>}
-            </button>
-          )}
+          <div className="flex-1 overflow-y-auto px-5 py-4">
+            {currentTurn?.output ? (
+              <MarkdownContent content={currentTurn.output.content} />
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full gap-3">
+                {node.isActive ? (
+                  <>
+                    <Loader2 size={20} className="animate-spin" style={{ color }} />
+                    <p className="text-sm font-medium" style={{ color }}>Agent is working…</p>
+                  </>
+                ) : (
+                  <p className="text-sm" style={{ color: "var(--muted)" }}>No output yet</p>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-/* ─── Raw view: technical full-detail feed ───────────────── */
-
+/* ─── Raw feed ───────────────────────────────────────────── */
 function RawFeedMessage({ msg }: { msg: Message }) {
   const [expanded, setExpanded] = useState(false);
   const color = agentColor(msg.agent_role);
   const isInput = msg.type === "agent_input";
   const isLong = msg.content.length > 400;
-
   return (
     <div className="flex gap-3">
       <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5" style={{ background: `${color}10`, border: `1px solid ${color}20` }}>
@@ -346,187 +418,118 @@ function RawFeedMessage({ msg }: { msg: Message }) {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1 flex-wrap">
           <span className="text-xs font-bold capitalize" style={{ color }}>{msg.agent_role.replace(/_/g, " ")}</span>
-          <span className="text-xs px-1.5 py-0.5 rounded font-mono" style={{ background: "var(--card-border)", color: "var(--muted)", fontSize: 9 }}>
-            {msg.type}
-          </span>
+          <span className="text-xs px-1.5 py-0.5 rounded font-mono" style={{ background: "var(--card-border)", color: "var(--muted)", fontSize: 9 }}>{msg.type}</span>
           {msg.isLive && <span className="text-xs animate-pulse" style={{ color: "var(--accent)", fontSize: 10 }}>● live</span>}
           {isInput && <span className="text-xs px-1.5 py-0.5 rounded font-semibold" style={{ background: "#fef9c3", color: "#92400e", fontSize: 9 }}>INPUT</span>}
         </div>
-        <div
-          className={`text-xs font-mono leading-relaxed rounded-lg px-3 py-2 whitespace-pre-wrap transition-all ${isLong && !expanded ? "max-h-32 overflow-hidden" : ""}`}
-          style={{ background: "var(--card)", border: "1px solid var(--card-border)", color: "var(--foreground)", position: "relative" }}
-        >
+        <div className={`text-xs font-mono leading-relaxed rounded-lg px-3 py-2 whitespace-pre-wrap relative transition-all ${isLong && !expanded ? "max-h-28 overflow-hidden" : ""}`}
+          style={{ background: "var(--card)", border: "1px solid var(--card-border)", color: "var(--foreground)" }}>
           {msg.content}
-          {isLong && !expanded && (
-            <div className="absolute bottom-0 left-0 right-0 h-10 pointer-events-none" style={{ background: "linear-gradient(to bottom, transparent, var(--card))" }} />
-          )}
+          {isLong && !expanded && <div className="absolute bottom-0 left-0 right-0 h-8 pointer-events-none" style={{ background: "linear-gradient(transparent, var(--card))" }} />}
         </div>
-        {isLong && (
-          <button onClick={() => setExpanded(e => !e)} className="text-xs font-medium mt-1" style={{ color: "var(--accent)" }}>
-            {expanded ? "Collapse" : `Expand (${msg.content.length.toLocaleString()} chars)`}
-          </button>
-        )}
+        {isLong && <button onClick={() => setExpanded(e => !e)} className="text-xs font-medium mt-1" style={{ color: "var(--accent)" }}>{expanded ? "Collapse" : `Expand (${msg.content.length.toLocaleString()} chars)`}</button>}
       </div>
     </div>
   );
 }
 
 /* ─── Delivery panel ─────────────────────────────────────── */
+function extractQualityReport(messages: Message[]) {
+  const reviewRoles = ["qa","fact_checker","critic","clause_flagger","protection_checker","bear_case","risk_agent"];
+  const reviews = messages.filter(m => reviewRoles.includes(m.agent_role) && m.type === "agent_output");
+  if (!reviews.length) return null;
+  const last = reviews[reviews.length - 1];
+  const scoreMatch = last.content.match(/"score":\s*([0-9.]+)/) || last.content.match(/score[:\s]+([0-9.]+)/i) || last.content.match(/([0-9.]+)\s*\/\s*10/i);
+  const score = scoreMatch ? parseFloat(scoreMatch[1]) : undefined;
+  const passedMatch = last.content.match(/"passed":\s*(true|false)/);
+  const verdict = passedMatch ? (passedMatch[1] === "true" ? "pass" : "fail") : score !== undefined ? (score >= 7 ? "pass" : "fail") : "unknown";
+  const findings = last.content.split("\n").filter(l => l.trim().match(/^[-•*]/)).map(l => l.trim().replace(/^[-•*]\s*/,"")).filter(l => l.length > 0).slice(0,5);
+  return { reviewer: last.agent_role.replace(/_/g," "), score, verdict, findings, revisions: reviews.length };
+}
 
-function DeliveryPanel({ task, messages, preset }: {
-  task: Task;
-  messages: Message[];
-  preset: Preset | undefined;
-}) {
+function extractDeliverable(messages: Message[]) {
+  const roles = ["writer","editor","synthesizer","legal_editor","content_editor","literature_synthesizer","citation_agent"];
+  const del = messages.filter(m => roles.includes(m.agent_role) && m.type === "agent_output");
+  return del[del.length - 1] ?? null;
+}
+
+function DeliveryPanel({ task, messages, preset }: { task: Task; messages: Message[]; preset: Preset | undefined }) {
   const deliverable = extractDeliverable(messages);
   const quality = extractQualityReport(messages);
-  const [tab, setTab] = useState<"output" | "report">("output");
-
-  const isDevPreset = task.preset_id === "software-dev" || !task.preset_id ||
-    (preset?.agents?.some(a => a.role.toLowerCase().includes("developer")) ?? false);
-
+  const [tab, setTab] = useState<"output"|"report">("output");
+  const isDevPreset = task.preset_id === "software-dev" || !task.preset_id || (preset?.agents?.some(a => a.role.toLowerCase().includes("developer")) ?? false);
   return (
-    <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid var(--card-border)" }}>
-      {/* Header */}
+    <div className="mx-6 mb-6 mt-4 rounded-2xl overflow-hidden shrink-0" style={{ border: "1px solid var(--card-border)" }}>
       <div className="px-5 py-3 flex items-center justify-between flex-wrap gap-2" style={{ background: "var(--accent-light)", borderBottom: "1px solid rgba(79,70,229,0.15)" }}>
         <div className="flex items-center gap-2 flex-wrap">
           <CheckCircle2 size={15} style={{ color: "var(--accent)" }} />
-          <span className="text-sm font-bold" style={{ color: "var(--accent)" }}>
-            {preset ? `${preset.name} complete` : "Task complete"}
-          </span>
-          {quality && (
-            <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ml-2 ${quality.verdict === "pass" ? "text-green-700" : quality.verdict === "fail" ? "text-red-700" : "text-yellow-700"}`}
-              style={{ background: quality.verdict === "pass" ? "#dcfce7" : quality.verdict === "fail" ? "#fee2e2" : "#fef9c3" }}>
-              {quality.verdict === "pass" ? "✓ QA Passed" : quality.verdict === "fail" ? "✗ QA Failed" : "QA Unknown"}
-              {quality.score !== undefined && ` · ${quality.score}/10`}
-            </span>
-          )}
+          <span className="text-sm font-bold" style={{ color: "var(--accent)" }}>{preset ? `${preset.name} complete` : "Task complete"}</span>
+          {quality && <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${quality.verdict==="pass"?"text-green-700":quality.verdict==="fail"?"text-red-700":"text-yellow-700"}`} style={{ background: quality.verdict==="pass"?"#dcfce7":quality.verdict==="fail"?"#fee2e2":"#fef9c3" }}>
+            {quality.verdict==="pass"?"✓ QA Passed":quality.verdict==="fail"?"✗ QA Failed":"QA Unknown"}{quality.score!==undefined&&` · ${quality.score}/10`}
+          </span>}
         </div>
         <div className="flex items-center gap-2">
           {(deliverable || isDevPreset) && (
             <div className="flex gap-1">
-              {(["output", "report"] as const).map(t => (
-                <button key={t} onClick={() => setTab(t)} className="text-xs px-2.5 py-1 rounded-md font-medium capitalize" style={{ background: tab === t ? "var(--accent)" : "transparent", color: tab === t ? "#fff" : "var(--accent)" }}>
-                  {t === "output" ? "Deliverable" : "QA Report"}
+              {(["output","report"] as const).map(t => (
+                <button key={t} onClick={() => setTab(t)} className="text-xs px-2.5 py-1 rounded-md font-medium capitalize" style={{ background: tab===t?"var(--accent)":"transparent", color: tab===t?"#fff":"var(--accent)" }}>
+                  {t==="output"?"Deliverable":"QA Report"}
                 </button>
               ))}
             </div>
           )}
-          {isDevPreset && (
-            <Link href={`/preview/${task.id}`} target="_blank" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: "var(--accent)" }}>
-              <ExternalLink size={11} /> Preview app
-            </Link>
-          )}
+          {isDevPreset && <Link href={`/preview/${task.id}`} target="_blank" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: "var(--accent)" }}><ExternalLink size={11}/> Preview app</Link>}
         </div>
       </div>
-
-      {/* Tab content */}
       <div className="p-5">
         {tab === "output" ? (
-          <div>
-            {deliverable ? (
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <ScrollText size={14} style={{ color: "var(--muted)" }} />
-                  <span className="text-xs font-semibold capitalize" style={{ color: "var(--muted)" }}>
-                    Final output · {deliverable.agent_role.replace(/_/g, " ")}
-                  </span>
-                </div>
-                <div className="rounded-xl px-5 py-4 max-h-96 overflow-y-auto" style={{ background: "var(--card)", border: "1px solid var(--card-border)" }}>
-                  <MarkdownContent content={deliverable.content} />
-                </div>
-              </div>
-            ) : isDevPreset ? (
-              <div className="text-center py-6">
-                <Code2 size={28} className="mx-auto mb-2" style={{ color: "var(--muted-light)" }} />
-                <p className="text-sm font-medium mb-1" style={{ color: "var(--foreground)" }}>App built successfully</p>
-                <p className="text-xs mb-3" style={{ color: "var(--muted)" }}>View the running app and source files in the preview.</p>
-                <Link href={`/preview/${task.id}`} target="_blank" className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: "var(--accent)" }}>
-                  <ExternalLink size={13} /> Open preview
-                </Link>
-              </div>
-            ) : (
-              <p className="text-sm text-center py-4" style={{ color: "var(--muted)" }}>No structured output extracted yet.</p>
-            )}
-          </div>
+          deliverable ? (
+            <div>
+              <div className="flex items-center gap-2 mb-3"><ScrollText size={14} style={{ color: "var(--muted)" }}/><span className="text-xs font-semibold capitalize" style={{ color: "var(--muted)" }}>Final output · {deliverable.agent_role.replace(/_/g," ")}</span></div>
+              <div className="rounded-xl px-5 py-4 max-h-80 overflow-y-auto" style={{ background: "var(--card)", border: "1px solid var(--card-border)" }}><MarkdownContent content={deliverable.content}/></div>
+            </div>
+          ) : isDevPreset ? (
+            <div className="text-center py-4"><Code2 size={24} className="mx-auto mb-2" style={{ color: "var(--muted-light)" }}/><p className="text-sm font-medium mb-1" style={{ color: "var(--foreground)" }}>App built</p><Link href={`/preview/${task.id}`} target="_blank" className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white mt-2" style={{ background: "var(--accent)" }}><ExternalLink size={13}/> Open preview</Link></div>
+          ) : <p className="text-sm text-center py-4" style={{ color: "var(--muted)" }}>No deliverable found.</p>
         ) : (
-          /* QA Report tab */
-          <div>
-            {quality ? (
-              <div className="space-y-4">
-                {quality.score !== undefined && (
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-xs font-semibold" style={{ color: "var(--muted)" }}>Quality score</span>
-                      <span className="text-sm font-bold" style={{ color: quality.score >= 7 ? "#059669" : "#dc2626" }}>{quality.score}/10</span>
-                    </div>
-                    <div className="h-2 rounded-full overflow-hidden" style={{ background: "var(--card-border)" }}>
-                      <div className="h-full rounded-full transition-all" style={{ width: `${(quality.score / 10) * 100}%`, background: quality.score >= 7 ? "#059669" : "#dc2626" }} />
-                    </div>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-3 gap-3">
-                  {[
-                    { label: "Verdict", value: quality.verdict === "pass" ? "Pass" : quality.verdict === "fail" ? "Fail" : "—", icon: quality.verdict === "pass" ? CheckCircle2 : XCircle, color: quality.verdict === "pass" ? "#059669" : "#dc2626" },
-                    { label: "Reviewer", value: quality.reviewer, icon: ShieldCheck, color: "#7c3aed" },
-                    { label: "Review cycles", value: String(quality.revisions), icon: RefreshCw, color: "#0284c7" },
-                  ].map(({ label, value, icon: Icon, color }) => (
-                    <div key={label} className="rounded-xl p-3 text-center" style={{ background: "var(--card)", border: "1px solid var(--card-border)" }}>
-                      <Icon size={16} className="mx-auto mb-1" style={{ color }} />
-                      <p className="text-xs font-bold" style={{ color: "var(--foreground)" }}>{value}</p>
-                      <p className="text-xs" style={{ color: "var(--muted)" }}>{label}</p>
-                    </div>
-                  ))}
-                </div>
-
-                {quality.findings.length > 0 && (
-                  <div>
-                    <p className="text-xs font-semibold mb-2" style={{ color: "var(--muted)" }}>Key findings</p>
-                    <div className="space-y-1.5">
-                      {quality.findings.map((f, i) => (
-                        <div key={i} className="flex items-start gap-2 text-xs" style={{ color: "var(--foreground)" }}>
-                          <CircleDot size={10} className="mt-0.5 shrink-0" style={{ color: "var(--accent)" }} />
-                          {f}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                <div>
-                  <p className="text-xs font-semibold mb-2" style={{ color: "var(--muted)" }}>Agent contributions</p>
-                  <div className="flex flex-wrap gap-2">
-                    {[...new Set(messages.map(m => m.agent_role))].filter(r => r !== "system").map(role => (
-                      <span key={role} className="text-xs px-2 py-1 rounded-lg font-medium capitalize" style={{ background: `${agentColor(role)}12`, color: agentColor(role), border: `1px solid ${agentColor(role)}25` }}>
-                        {role.replace(/_/g, " ")}
-                      </span>
-                    ))}
-                  </div>
-                </div>
+          quality ? (
+            <div className="space-y-4">
+              {quality.score!==undefined&&<div><div className="flex justify-between mb-1.5"><span className="text-xs font-semibold" style={{ color: "var(--muted)" }}>Quality score</span><span className="text-sm font-bold" style={{ color: quality.score>=7?"#059669":"#dc2626" }}>{quality.score}/10</span></div><div className="h-2 rounded-full overflow-hidden" style={{ background: "var(--card-border)" }}><div className="h-full rounded-full" style={{ width:`${(quality.score/10)*100}%`, background: quality.score>=7?"#059669":"#dc2626" }}/></div></div>}
+              <div className="grid grid-cols-3 gap-3">
+                {[{label:"Verdict",value:quality.verdict==="pass"?"Pass":"Fail",icon:quality.verdict==="pass"?CheckCircle2:XCircle,color:quality.verdict==="pass"?"#059669":"#dc2626"},{label:"Reviewer",value:quality.reviewer,icon:ShieldCheck,color:"#7c3aed"},{label:"Cycles",value:String(quality.revisions),icon:RefreshCw,color:"#0284c7"}].map(({label,value,icon:Icon,color})=>(
+                  <div key={label} className="rounded-xl p-3 text-center" style={{ background: "var(--card)", border: "1px solid var(--card-border)" }}><Icon size={15} className="mx-auto mb-1" style={{ color }}/><p className="text-xs font-bold" style={{ color: "var(--foreground)" }}>{value}</p><p className="text-xs" style={{ color: "var(--muted)" }}>{label}</p></div>
+                ))}
               </div>
-            ) : (
-              <div className="text-center py-6">
-                <BarChart3 size={28} className="mx-auto mb-2" style={{ color: "var(--muted-light)" }} />
-                <p className="text-sm" style={{ color: "var(--muted)" }}>No QA/review data found in this task&apos;s messages.</p>
-              </div>
-            )}
-          </div>
+              {quality.findings.length>0&&<div><p className="text-xs font-semibold mb-2" style={{ color: "var(--muted)" }}>Key findings</p><div className="space-y-1.5">{quality.findings.map((f,i)=><div key={i} className="flex items-start gap-2 text-xs" style={{ color: "var(--foreground)" }}><CircleDot size={10} className="mt-0.5 shrink-0" style={{ color: "var(--accent)" }}/>{f}</div>)}</div></div>}
+            </div>
+          ) : <div className="text-center py-4"><BarChart3 size={24} className="mx-auto mb-2" style={{ color: "var(--muted-light)" }}/><p className="text-sm" style={{ color: "var(--muted)" }}>No QA data.</p></div>
         )}
       </div>
     </div>
   );
 }
 
+/* ─── Preset selector ────────────────────────────────────── */
+function PresetSelector({ presets, selected, onSelect }: { presets: Preset[]; selected: string; onSelect: (id: string) => void }) {
+  return (
+    <div className="flex items-center gap-2 flex-wrap">
+      {presets.map(p => {
+        const Icon = PRESET_ICONS[p.id] ?? Layers;
+        const active = p.id === selected;
+        return (
+          <button key={p.id} onClick={() => onSelect(p.id)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all" style={{ background: active ? p.categoryColor : "var(--card)", color: active ? "#fff" : "var(--muted)", border: active ? "none" : "1px solid var(--card-border)", boxShadow: active ? `0 2px 8px ${p.categoryColor}40` : "none" }}>
+            <Icon size={12}/>{p.name}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 /* ─── Main page ──────────────────────────────────────────── */
-
 export default function ProjectsPage() {
-  const [allPresets, setAllPresets] = useState<Preset[]>(() => {
-    if (typeof window === "undefined") return BUILTIN_PRESETS;
-    return [...BUILTIN_PRESETS, ...loadCustomPresets()];
-  });
-
-  const [selectedPresetId, setSelectedPresetId] = useState<string>("software-dev");
+  const [allPresets, setAllPresets] = useState<Preset[]>(() => typeof window === "undefined" ? BUILTIN_PRESETS : [...BUILTIN_PRESETS, ...loadCustomPresets()]);
+  const [selectedPresetId, setSelectedPresetId] = useState("software-dev");
   const [goal, setGoal] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -536,11 +539,10 @@ export default function ProjectsPage() {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [goalExpanded, setGoalExpanded] = useState(false);
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
-  const [viewMode, setViewMode] = useState<ViewMode>("story");
-  const feedRef = useRef<HTMLDivElement>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>("pipeline");
+  const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
 
-  /* Load active preset from localStorage on mount */
   useEffect(() => {
     const active = loadActivePresetId();
     if (active) setSelectedPresetId(active);
@@ -556,52 +558,33 @@ export default function ProjectsPage() {
     return () => clearInterval(iv);
   }, []);
 
-  useEffect(() => {
-    if (feedRef.current) feedRef.current.scrollTo({ top: feedRef.current.scrollHeight, behavior: "smooth" });
-  }, [liveEvents, messages]);
-
   const fetchTasks = async () => {
-    try {
-      const res = await fetch(`${API}/tasks/`);
-      if (res.ok) setTasks(await res.json());
-    } catch {}
+    try { const r = await fetch(`${API}/tasks/`); if (r.ok) setTasks(await r.json()); } catch {}
   };
 
   const selectTask = async (taskId: string) => {
     setSelectedId(taskId);
     setGoalExpanded(false);
     setLiveEvents([]);
+    setSelectedAgent(null);
     setLoadingMessages(true);
     wsRef.current?.close();
-
     try {
-      const res = await fetch(`${API}/tasks/${taskId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setMessages(data.messages ?? []);
-      }
-    } finally {
-      setLoadingMessages(false);
-    }
+      const r = await fetch(`${API}/tasks/${taskId}`);
+      if (r.ok) { const d = await r.json(); setMessages(d.messages ?? []); }
+    } finally { setLoadingMessages(false); }
 
     const ws = new WebSocket(`${WS}/ws/${taskId}`);
-    ws.onmessage = (e) => {
-      const event: LiveEvent = JSON.parse(e.data);
-      setLiveEvents(prev => [...prev, {
-        id: `live-${Date.now()}`,
-        agent_role: event.agent,
-        type: event.type,
-        content: event.content,
-        created_at: new Date().toISOString(),
-        isLive: true,
-      }]);
+    ws.onmessage = e => {
+      const ev: LiveEvent = JSON.parse(e.data);
+      setLiveEvents(prev => [...prev, { id: `live-${Date.now()}`, agent_role: ev.agent, type: ev.type, content: ev.content, created_at: new Date().toISOString(), isLive: true }]);
       setTasks(prev => prev.map(t => {
         if (t.id !== taskId) return t;
-        if (event.type === "done") return { ...t, status: "done" };
-        if (event.type === "error") return { ...t, status: "failed" };
-        if (event.agent === "ceo" || event.agent === "researcher" || event.agent === "analyst") return { ...t, status: "planning" };
-        if (["developer", "content_writer", "summarizer"].includes(event.agent)) return { ...t, status: "executing" };
-        if (["qa", "fact_checker", "critic", "clause_flagger"].includes(event.agent)) return { ...t, status: "reviewing" };
+        if (ev.type === "done" || ev.type === "done_escalated") return { ...t, status: "done" };
+        if (ev.type === "error") return { ...t, status: "failed" };
+        if (["ceo","analyst","researcher"].includes(ev.agent)) return { ...t, status: "planning" };
+        if (["developer","content_writer","summarizer","bear_case"].includes(ev.agent)) return { ...t, status: "executing" };
+        if (["qa","fact_checker","critic","risk_agent"].includes(ev.agent)) return { ...t, status: "reviewing" };
         return t;
       }));
     };
@@ -612,202 +595,117 @@ export default function ProjectsPage() {
     if (!goal.trim() || submitting) return;
     setSubmitting(true);
     try {
-      const res = await fetch(`${API}/tasks/`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ goal: goal.trim(), preset_id: selectedPresetId }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const taskId = data.task_id;
+      const r = await fetch(`${API}/tasks/`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ goal: goal.trim(), preset_id: selectedPresetId }) });
+      if (r.ok) {
+        const d = await r.json();
         setGoal("");
         await fetchTasks();
-        setTasks(prev => prev.map(t => t.id === taskId ? { ...t, preset_id: selectedPresetId } : t));
-        selectTask(taskId);
+        setTasks(prev => prev.map(t => t.id === d.task_id ? { ...t, preset_id: selectedPresetId } : t));
+        selectTask(d.task_id);
       }
-    } finally {
-      setSubmitting(false);
-    }
+    } finally { setSubmitting(false); }
   };
 
   const selectedTask = tasks.find(t => t.id === selectedId);
   const selectedPreset = allPresets.find(p => p.id === selectedPresetId);
   const taskPreset = allPresets.find(p => p.id === selectedTask?.preset_id);
 
-  // Story view: only agent outputs (no inputs)
-  const storyMessages: Message[] = [
-    ...messages.filter(m => m.type !== "agent_input"),
-    ...liveEvents.filter(m => m.type !== "agent_input"),
-  ];
+  const allMessages = [...messages, ...liveEvents];
+  const pipeline = buildPipeline(allMessages);
 
-  // Raw view: all messages including inputs
-  const allMessages: Message[] = [...messages, ...liveEvents];
+  // Auto-select last active node
+  useEffect(() => {
+    if (pipeline.length > 0 && !selectedAgent) {
+      setSelectedAgent(pipeline[pipeline.length - 1].role);
+    }
+  }, [pipeline.length]);
 
-  const isActive = (s: TaskStatus) => ["planning", "executing", "reviewing"].includes(s);
+  const selectedNode = pipeline.find(n => n.role === selectedAgent);
 
   return (
     <div className="flex flex-col min-h-full">
-
-      {/* ── Submission header ── */}
-      <div className="px-4 sm:px-8 lg:px-10 pt-8 pb-4 border-b" style={{ borderColor: "var(--card-border)" }}>
-        <div className="flex items-start justify-between gap-2 mb-4 flex-wrap">
-          <div>
-            <h1 className="text-2xl font-bold mb-0.5" style={{ color: "var(--foreground)" }}>Projects</h1>
-            <p className="text-sm" style={{ color: "var(--muted)" }}>
-              Pick a specialist team, describe the task, and let your agents handle it.
-            </p>
-          </div>
+      {/* ── Header ── */}
+      <div className="px-4 sm:px-8 lg:px-10 pt-8 pb-4 border-b shrink-0" style={{ borderColor: "var(--card-border)" }}>
+        <div className="mb-4">
+          <h1 className="text-2xl font-bold mb-0.5" style={{ color: "var(--foreground)" }}>Projects</h1>
+          <p className="text-sm" style={{ color: "var(--muted)" }}>Pick a specialist team, describe the task, and let your agents handle it.</p>
         </div>
-
-        {/* Preset picker */}
         <div className="mb-3">
           <div className="flex items-center gap-2 mb-2">
             <span className="text-xs font-semibold" style={{ color: "var(--muted)" }}>Agent team</span>
-            {selectedPreset && (
-              <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: `${selectedPreset.categoryColor}15`, color: selectedPreset.categoryColor }}>
-                {selectedPreset.agents.length} agents
-              </span>
-            )}
+            {selectedPreset && <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: `${selectedPreset.categoryColor}15`, color: selectedPreset.categoryColor }}>{selectedPreset.agents.length} agents</span>}
           </div>
-          <PresetSelector
-            presets={allPresets}
-            selected={selectedPresetId}
-            onSelect={setSelectedPresetId}
-          />
-          {selectedPreset && (
-            <p className="text-xs mt-2 leading-relaxed" style={{ color: "var(--muted)" }}>
-              <span className="font-mono" style={{ color: selectedPreset.categoryColor }}>{selectedPreset.tagline}</span>
-              {" · "}{selectedPreset.description.split(".")[0]}.
-            </p>
-          )}
+          <PresetSelector presets={allPresets} selected={selectedPresetId} onSelect={setSelectedPresetId} />
+          {selectedPreset && <p className="text-xs mt-2 leading-relaxed" style={{ color: "var(--muted)" }}><span className="font-mono" style={{ color: selectedPreset.categoryColor }}>{selectedPreset.tagline}</span>{" · "}{selectedPreset.description.split(".")[0]}.</p>}
         </div>
-
-        {/* Goal input */}
         <div className="flex gap-2">
-          <textarea
-            className="flex-1 px-4 py-3 rounded-xl text-sm resize-none border outline-none transition-all"
-            style={{ background: "var(--card)", borderColor: "var(--card-border)", color: "var(--foreground)", minHeight: "52px", maxHeight: "120px" }}
-            placeholder={
-              selectedPresetId === "software-dev" ? 'e.g. "Build a calculator web app with a clean UI"' :
-              selectedPresetId === "research-intelligence" ? 'e.g. "Research the current state of fusion energy investment"' :
-              selectedPresetId === "investment-analysis" ? 'e.g. "Analyse the investment case for SpaceX"' :
-              selectedPresetId === "legal-review" ? 'e.g. "Review this SaaS subscription agreement for red flags"' :
-              selectedPresetId === "content-marketing" ? 'e.g. "Write a blog post on why multi-agent AI outperforms single models"' :
-              selectedPresetId === "academic-review" ? 'e.g. "Review literature on LLM reasoning and chain-of-thought prompting"' :
-              'Describe what you want your agents to do…'
-            }
-            value={goal}
-            rows={1}
-            onChange={e => setGoal(e.target.value)}
-            onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submitTask(); } }}
+          <textarea className="flex-1 px-4 py-3 rounded-xl text-sm resize-none border outline-none" style={{ background: "var(--card)", borderColor: "var(--card-border)", color: "var(--foreground)", minHeight: "52px", maxHeight: "120px" }}
+            placeholder={selectedPresetId === "investment-analysis" ? 'e.g. "Analyse the investment case for SpaceX"' : selectedPresetId === "software-dev" ? 'e.g. "Build a calculator web app"' : 'Describe what you want your agents to do…'}
+            value={goal} rows={1} onChange={e => setGoal(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submitTask(); } }}
           />
-          <button
-            onClick={submitTask}
-            disabled={!goal.trim() || submitting}
-            className="px-4 py-3 rounded-xl text-sm font-semibold text-white flex items-center gap-2 shrink-0 disabled:opacity-50"
-            style={{ background: selectedPreset?.categoryColor ?? "var(--accent)", boxShadow: `0 2px 8px ${selectedPreset?.categoryColor ?? "var(--accent)"}40` }}
-          >
-            {submitting ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+          <button onClick={submitTask} disabled={!goal.trim() || submitting} className="px-4 py-3 rounded-xl text-sm font-semibold text-white flex items-center gap-2 shrink-0 disabled:opacity-50" style={{ background: selectedPreset?.categoryColor ?? "var(--accent)" }}>
+            {submitting ? <Loader2 size={16} className="animate-spin"/> : <Send size={16}/>}
             {submitting ? "Starting…" : "Run"}
           </button>
         </div>
       </div>
 
       {/* ── Body ── */}
-      <div className="flex flex-1">
-
+      <div className="flex flex-1 min-h-0">
         {/* Task list */}
-        <div className="w-72 shrink-0 border-r" style={{ borderColor: "var(--card-border)", background: "#fafafa" }}>
-          <div className="p-3 flex items-center justify-between border-b" style={{ borderColor: "var(--card-border)" }}>
-            <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--muted-light)" }}>
-              {tasks.length} project{tasks.length !== 1 ? "s" : ""}
-            </span>
-            <button onClick={fetchTasks} className="p-1 rounded" style={{ color: "var(--muted)" }}><RefreshCw size={13} /></button>
+        <div className="w-64 shrink-0 border-r flex flex-col" style={{ borderColor: "var(--card-border)", background: "#fafafa" }}>
+          <div className="p-3 flex items-center justify-between border-b shrink-0" style={{ borderColor: "var(--card-border)" }}>
+            <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--muted-light)" }}>{tasks.length} projects</span>
+            <button onClick={fetchTasks} className="p-1 rounded" style={{ color: "var(--muted)" }}><RefreshCw size={13}/></button>
           </div>
-
-          {tasks.length === 0 ? (
-            <div className="p-6 text-center">
-              <Lightbulb size={24} className="mx-auto mb-2" style={{ color: "var(--muted-light)" }} />
-              <p className="text-sm" style={{ color: "var(--muted)" }}>No projects yet. Pick a team above and describe your task.</p>
-            </div>
-          ) : tasks.map(task => {
-            const cfg = STATUS_CONFIG[task.status] ?? STATUS_CONFIG.pending;
-            const active = task.id === selectedId;
-            const tPreset = allPresets.find(p => p.id === task.preset_id);
-            const PresetIco = tPreset ? (PRESET_ICONS[tPreset.id] ?? Layers) : FlaskConical;
-            const isLong = task.goal.length > 80;
-            const cardExpanded = expandedCards.has(task.id);
-            const displayGoal = isLong && !cardExpanded ? task.goal.slice(0, 80) + "…" : task.goal;
-            return (
-              <div
-                key={task.id}
-                className="w-full text-left px-4 py-3 border-b"
-                style={{ borderColor: "var(--card-border)", background: active ? "var(--accent-light)" : "transparent", borderLeft: active ? "3px solid var(--accent)" : "3px solid transparent" }}
-              >
-                <div className="cursor-pointer" onClick={() => selectTask(task.id)}>
-                  <div className="flex items-center gap-2 mb-1">
-                    {isActive(task.status)
-                      ? <Loader2 size={11} className="animate-spin" style={{ color: cfg.color }} />
-                      : task.status === "done" ? <CheckCircle2 size={11} style={{ color: cfg.color }} />
-                      : task.status === "failed" ? <XCircle size={11} style={{ color: cfg.color }} />
-                      : <Clock size={11} style={{ color: cfg.color }} />}
-                    <span className="text-xs font-semibold" style={{ color: cfg.color }}>{cfg.label}</span>
-                    {tPreset && (
-                      <span className="ml-auto flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full" style={{ background: `${tPreset.categoryColor}12`, color: tPreset.categoryColor }}>
-                        <PresetIco size={9} />
-                        <span style={{ fontSize: 9 }}>{tPreset.name.split(" ")[0]}</span>
-                      </span>
-                    )}
+          <div className="flex-1 overflow-y-auto">
+            {tasks.length === 0 ? (
+              <div className="p-6 text-center"><Lightbulb size={24} className="mx-auto mb-2" style={{ color: "var(--muted-light)" }}/><p className="text-sm" style={{ color: "var(--muted)" }}>No projects yet.</p></div>
+            ) : tasks.map(task => {
+              const cfg = STATUS_CFG[task.status] ?? STATUS_CFG.pending;
+              const active = task.id === selectedId;
+              const tPreset = allPresets.find(p => p.id === task.preset_id);
+              const PIcon = tPreset ? (PRESET_ICONS[tPreset.id] ?? Layers) : FlaskConical;
+              const isLong = task.goal.length > 70;
+              const cardExp = expandedCards.has(task.id);
+              return (
+                <div key={task.id} className="w-full text-left px-4 py-3 border-b" style={{ borderColor: "var(--card-border)", background: active ? "var(--accent-light)" : "transparent", borderLeft: active ? "3px solid var(--accent)" : "3px solid transparent" }}>
+                  <div className="cursor-pointer" onClick={() => selectTask(task.id)}>
+                    <div className="flex items-center gap-2 mb-1">
+                      {isActive(task.status) ? <Loader2 size={10} className="animate-spin" style={{ color: cfg.color }}/> : task.status === "done" ? <CheckCircle2 size={10} style={{ color: cfg.color }}/> : task.status === "failed" ? <XCircle size={10} style={{ color: cfg.color }}/> : <Clock size={10} style={{ color: cfg.color }}/>}
+                      <span className="text-xs font-semibold" style={{ color: cfg.color }}>{cfg.label}</span>
+                      {tPreset && <span className="ml-auto flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded-full" style={{ background: `${tPreset.categoryColor}12`, color: tPreset.categoryColor }}><PIcon size={8}/><span style={{ fontSize: 9 }}>{tPreset.name.split(" ")[0]}</span></span>}
+                    </div>
+                    <p className="text-xs leading-snug" style={{ color: active ? "var(--accent)" : "var(--foreground)" }}>
+                      {isLong && !cardExp ? task.goal.slice(0, 70) + "…" : task.goal}
+                    </p>
                   </div>
-                  <p className="text-xs leading-snug" style={{ color: active ? "var(--accent)" : "var(--foreground)" }}>{displayGoal}</p>
+                  {isLong && <button onClick={e => { e.stopPropagation(); setExpandedCards(prev => { const n = new Set(prev); cardExp ? n.delete(task.id) : n.add(task.id); return n; }); }} className="text-xs mt-1 font-medium" style={{ color: "var(--accent)" }}>{cardExp ? "Less" : "More"}</button>}
+                  <p className="text-xs mt-1" style={{ color: "var(--muted-light)" }}>{new Date(task.created_at).toLocaleTimeString()}</p>
                 </div>
-                {isLong && (
-                  <button
-                    onClick={e => {
-                      e.stopPropagation();
-                      setExpandedCards(prev => {
-                        const next = new Set(prev);
-                        if (cardExpanded) next.delete(task.id); else next.add(task.id);
-                        return next;
-                      });
-                    }}
-                    className="text-xs mt-1 font-medium"
-                    style={{ color: "var(--accent)" }}
-                  >
-                    {cardExpanded ? "Show less" : "Show more"}
-                  </button>
-                )}
-                <p className="text-xs mt-1" style={{ color: "var(--muted-light)" }}>{new Date(task.created_at).toLocaleTimeString()}</p>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
 
         {/* Main panel */}
-        <div className="flex-1 flex flex-col min-w-0">
+        <div className="flex-1 flex flex-col min-h-0 min-w-0">
           {!selectedId ? (
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center max-w-sm px-6">
                 <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: "var(--accent-light)", border: "1px solid rgba(79,70,229,0.15)" }}>
-                  <Bot size={28} style={{ color: "var(--accent)" }} />
+                  <Bot size={28} style={{ color: "var(--accent)" }}/>
                 </div>
                 <p className="text-base font-semibold mb-1" style={{ color: "var(--foreground)" }}>Select a project</p>
-                <p className="text-sm" style={{ color: "var(--muted)" }}>
-                  Pick a specialist team above, describe your task, and your agents will collaborate to produce a peer-reviewed result.
-                </p>
+                <p className="text-sm" style={{ color: "var(--muted)" }}>Click a project to see the agent pipeline and inspect each agent's input and output.</p>
                 <div className="mt-6 space-y-2 text-left">
                   {BUILTIN_PRESETS.map(p => {
                     const Icon = PRESET_ICONS[p.id] ?? Layers;
                     return (
-                      <button key={p.id} onClick={() => setSelectedPresetId(p.id)} className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-left transition-all" style={{ background: "var(--card)", border: "1px solid var(--card-border)" }}>
-                        <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: `${p.categoryColor}12`, border: `1px solid ${p.categoryColor}25` }}>
-                          <Icon size={13} style={{ color: p.categoryColor }} />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-xs font-semibold" style={{ color: "var(--foreground)" }}>{p.name}</p>
-                          <p className="text-xs truncate" style={{ color: "var(--muted)" }}>{p.tagline}</p>
-                        </div>
-                        <ArrowRight size={12} className="shrink-0 ml-auto" style={{ color: "var(--muted-light)" }} />
+                      <button key={p.id} onClick={() => setSelectedPresetId(p.id)} className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-left" style={{ background: "var(--card)", border: "1px solid var(--card-border)" }}>
+                        <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: `${p.categoryColor}12`, border: `1px solid ${p.categoryColor}25` }}><Icon size={13} style={{ color: p.categoryColor }}/></div>
+                        <div className="min-w-0"><p className="text-xs font-semibold" style={{ color: "var(--foreground)" }}>{p.name}</p><p className="text-xs truncate" style={{ color: "var(--muted)" }}>{p.tagline}</p></div>
+                        <ArrowRight size={12} className="shrink-0 ml-auto" style={{ color: "var(--muted-light)" }}/>
                       </button>
                     );
                   })}
@@ -816,99 +714,68 @@ export default function ProjectsPage() {
             </div>
           ) : (
             <>
-              {/* Task header */}
-              <div className="px-6 py-4 border-b flex items-start justify-between gap-4" style={{ borderColor: "var(--card-border)" }}>
+              {/* Task header + view toggle */}
+              <div className="px-6 py-3 flex items-center justify-between gap-4 shrink-0" style={{ borderBottom: "1px solid var(--card-border)" }}>
                 <div className="flex-1 min-w-0">
                   {selectedTask && (() => {
-                    const cfg = STATUS_CONFIG[selectedTask.status] ?? STATUS_CONFIG.pending;
-                    const isLong = selectedTask.goal.length > 160;
-                    const displayGoal = isLong && !goalExpanded
-                      ? selectedTask.goal.slice(0, 160) + "…"
-                      : selectedTask.goal;
+                    const cfg = STATUS_CFG[selectedTask.status] ?? STATUS_CFG.pending;
                     return (
-                      <>
-                        <div className="flex items-center gap-2 mb-2 flex-wrap">
-                          {isActive(selectedTask.status) ? <Loader2 size={14} className="animate-spin" style={{ color: cfg.color }} /> : <div className="w-3 h-3 rounded-full shrink-0" style={{ background: cfg.color }} />}
-                          <span className="text-xs font-semibold" style={{ color: cfg.color }}>{cfg.label}</span>
-                          {taskPreset && (
-                            <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: `${taskPreset.categoryColor}12`, color: taskPreset.categoryColor }}>
-                              {taskPreset.name}
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-sm font-medium leading-relaxed" style={{ color: "var(--foreground)" }}>{displayGoal}</p>
-                        {isLong && (
-                          <button onClick={() => setGoalExpanded(e => !e)} className="text-xs mt-1 font-medium" style={{ color: "var(--accent)" }}>
-                            {goalExpanded ? "Show less" : "Show more"}
-                          </button>
-                        )}
-                      </>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {isActive(selectedTask.status) ? <Loader2 size={13} className="animate-spin" style={{ color: cfg.color }}/> : <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: cfg.color }}/>}
+                        <span className="text-xs font-semibold" style={{ color: cfg.color }}>{cfg.label}</span>
+                        {taskPreset && <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: `${taskPreset.categoryColor}12`, color: taskPreset.categoryColor }}>{taskPreset.name}</span>}
+                        <span className="text-sm font-medium truncate" style={{ color: "var(--foreground)" }}>
+                          {selectedTask.goal.length > 80 ? selectedTask.goal.slice(0,80) + "…" : selectedTask.goal}
+                        </span>
+                      </div>
                     );
                   })()}
                 </div>
-
-                {/* View mode toggle */}
-                <div className="flex items-center gap-0.5 p-1 rounded-xl shrink-0" style={{ background: "var(--card)", border: "1px solid var(--card-border)" }}>
-                  {([
-                    { mode: "story" as ViewMode, icon: Sparkles, label: "Story" },
-                    { mode: "raw" as ViewMode, icon: Terminal, label: "Raw" },
-                  ] as const).map(({ mode, icon: Icon, label }) => (
-                    <button
-                      key={mode}
-                      onClick={() => setViewMode(mode)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
-                      style={{
-                        background: viewMode === mode ? "var(--accent)" : "transparent",
-                        color: viewMode === mode ? "#fff" : "var(--muted)",
-                      }}
-                    >
-                      <Icon size={11} />
-                      {label}
+                <div className="flex items-center gap-0.5 p-0.5 rounded-xl shrink-0" style={{ background: "var(--card)", border: "1px solid var(--card-border)" }}>
+                  {([{ mode: "pipeline" as ViewMode, icon: BarChart3, label: "Pipeline" }, { mode: "raw" as ViewMode, icon: Terminal, label: "Raw" }] as const).map(({ mode, icon: Icon, label }) => (
+                    <button key={mode} onClick={() => setViewMode(mode)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all" style={{ background: viewMode===mode?"var(--accent)":"transparent", color: viewMode===mode?"#fff":"var(--muted)" }}>
+                      <Icon size={11}/>{label}
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* Feed */}
-              <div ref={feedRef} className="flex-1 overflow-y-auto p-6 space-y-4">
-                {loadingMessages ? (
-                  <div className="flex justify-center pt-8"><Loader2 size={20} className="animate-spin" style={{ color: "var(--muted)" }} /></div>
-                ) : (viewMode === "story" ? storyMessages : allMessages).length === 0 ? (
-                  <div className="text-center pt-8">
-                    <Loader2 size={20} className="animate-spin mx-auto mb-2" style={{ color: "var(--accent)" }} />
-                    <p className="text-sm" style={{ color: "var(--muted)" }}>Agents are starting up…</p>
-                  </div>
-                ) : viewMode === "story" ? (
-                  <>
-                    {/* Story / conversation view */}
-                    {storyMessages.map((msg, i) => (
-                      <AgentConversationCard
-                        key={msg.id ?? i}
-                        msg={msg}
-                        isLast={i === storyMessages.length - 1}
-                      />
-                    ))}
-                    {selectedTask?.status === "done" && (
-                      <DeliveryPanel task={selectedTask} messages={[...messages, ...liveEvents]} preset={taskPreset} />
-                    )}
-                  </>
-                ) : (
-                  <>
-                    {/* Raw technical view */}
-                    <div className="flex items-center gap-2 pb-2 border-b" style={{ borderColor: "var(--card-border)" }}>
-                      <Terminal size={12} style={{ color: "var(--muted)" }} />
-                      <span className="text-xs font-semibold" style={{ color: "var(--muted)" }}>Raw message log · {allMessages.length} messages</span>
-                      <span className="text-xs px-2 py-0.5 rounded font-mono ml-auto" style={{ background: "#fef9c3", color: "#92400e" }}>
-                        INPUT = what was sent to agent · OUTPUT = agent response
-                      </span>
+              {loadingMessages ? (
+                <div className="flex-1 flex items-center justify-center"><Loader2 size={20} className="animate-spin" style={{ color: "var(--muted)" }}/></div>
+              ) : viewMode === "pipeline" ? (
+                <div className="flex-1 flex flex-col min-h-0">
+                  {/* Pipeline graph */}
+                  <PipelineGraph
+                    nodes={pipeline}
+                    selected={selectedAgent}
+                    onSelect={role => setSelectedAgent(role)}
+                    taskStatus={selectedTask?.status ?? "pending"}
+                  />
+                  {/* Agent detail pane */}
+                  {selectedNode ? (
+                    <AgentDetail node={selectedNode} allNodes={pipeline} />
+                  ) : (
+                    <div className="flex-1 flex items-center justify-center">
+                      <p className="text-sm" style={{ color: "var(--muted)" }}>Click an agent in the pipeline above to inspect their input and output.</p>
                     </div>
-                    {allMessages.map((msg, i) => <RawFeedMessage key={msg.id ?? i} msg={msg} />)}
-                    {selectedTask?.status === "done" && (
-                      <DeliveryPanel task={selectedTask} messages={allMessages} preset={taskPreset} />
-                    )}
-                  </>
-                )}
-              </div>
+                  )}
+                  {/* Delivery panel */}
+                  {selectedTask?.status === "done" && (
+                    <DeliveryPanel task={selectedTask} messages={allMessages} preset={taskPreset} />
+                  )}
+                </div>
+              ) : (
+                /* Raw view */
+                <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                  <div className="flex items-center gap-2 pb-2 border-b" style={{ borderColor: "var(--card-border)" }}>
+                    <Terminal size={12} style={{ color: "var(--muted)" }}/>
+                    <span className="text-xs font-semibold" style={{ color: "var(--muted)" }}>Raw log · {allMessages.length} messages</span>
+                    <span className="text-xs px-2 py-0.5 rounded font-mono ml-auto" style={{ background: "#fef9c3", color: "#92400e" }}>INPUT = prompt sent to agent · OUTPUT = LLM response</span>
+                  </div>
+                  {allMessages.map((msg, i) => <RawFeedMessage key={msg.id ?? i} msg={msg}/>)}
+                  {selectedTask?.status === "done" && <DeliveryPanel task={selectedTask} messages={allMessages} preset={taskPreset}/>}
+                </div>
+              )}
             </>
           )}
         </div>
