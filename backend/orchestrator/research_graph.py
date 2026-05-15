@@ -30,6 +30,11 @@ class ResearchState(TypedDict):
     events: Annotated[list[dict], lambda a, b: a + b]
 
 
+def _preview(text: str, max_len: int = 280) -> str:
+    flat = text.replace("\n", " ").strip()
+    return flat[:max_len] + "…" if len(flat) > max_len else flat
+
+
 async def researcher_node(state: ResearchState) -> dict:
     memory = MemoryStore(state["task_id"])
     agent = ResearcherAgent(state["task_id"], memory)
@@ -44,25 +49,28 @@ async def researcher_node(state: ResearchState) -> dict:
     else:
         prompt += "Build a comprehensive research brief on this topic."
 
+    await _save_message(state["task_id"], "researcher", "agent_input", prompt)
     response = await agent.run(prompt)
-    await _save_message(state["task_id"], "researcher", "output", response)
+    await _save_message(state["task_id"], "researcher", "agent_output", response)
     await _update_task_status(state["task_id"], "planning")
     return {
         "researcher_output": response,
         "status": "planning",
-        "events": [{"type": "agent_output", "agent": "researcher", "content": f"Research brief complete (revision {state['revision_count'] + 1})"}],
+        "events": [{"type": "agent_output", "agent": "researcher", "content": _preview(response)}],
     }
 
 
 async def fact_checker_node(state: ResearchState) -> dict:
     memory = MemoryStore(state["task_id"])
     agent = FactCheckerAgent(state["task_id"], memory)
-    response = await agent.run(
+    prompt = (
         f"Research topic: {state['goal']}\n\n"
         f"Research brief:\n\n{state['researcher_output']}\n\n"
         "Fact-check this research brief for accuracy and source quality."
     )
-    await _save_message(state["task_id"], "fact_checker", "output", response)
+    await _save_message(state["task_id"], "fact_checker", "agent_input", prompt)
+    response = await agent.run(prompt)
+    await _save_message(state["task_id"], "fact_checker", "agent_output", response)
 
     try:
         review = agent.parse_json(response)
@@ -88,7 +96,7 @@ async def fact_checker_node(state: ResearchState) -> dict:
             "fact_check_feedback": feedback,
             "revision_count": state["revision_count"] + 1,
             "status": "planning",
-            "events": [{"type": "qa_fail", "agent": "fact_checker", "content": feedback[:200]}],
+            "events": [{"type": "qa_fail", "agent": "fact_checker", "content": feedback[:280]}],
         }
 
 
@@ -101,37 +109,42 @@ def route_after_fact_check(state: ResearchState) -> str:
 async def devils_advocate_node(state: ResearchState) -> dict:
     memory = MemoryStore(state["task_id"])
     agent = DevilsAdvocateAgent(state["task_id"], memory)
-    response = await agent.run(
+    prompt = (
         f"Research topic: {state['goal']}\n\n"
         f"Research brief:\n\n{state['researcher_output']}\n\n"
         f"Fact-checker assessment:\n\n{state['fact_check_output']}\n\n"
         "Challenge the research conclusions — what is the strongest counterargument?"
     )
-    await _save_message(state["task_id"], "devils_advocate", "output", response)
+    await _save_message(state["task_id"], "devils_advocate", "agent_input", prompt)
+    response = await agent.run(prompt)
+    await _save_message(state["task_id"], "devils_advocate", "agent_output", response)
     return {
         "devils_advocate_output": response,
         "status": "reviewing",
-        "events": [{"type": "agent_output", "agent": "devils_advocate", "content": "Devil's advocate challenge complete"}],
+        "events": [{"type": "agent_output", "agent": "devils_advocate", "content": _preview(response)}],
     }
 
 
 async def research_editor_node(state: ResearchState) -> dict:
     memory = MemoryStore(state["task_id"])
     agent = ResearchEditorAgent(state["task_id"], memory)
-    response = await agent.run(
+    prompt = (
         f"Research topic: {state['goal']}\n\n"
         f"RESEARCH BRIEF:\n{state['researcher_output']}\n\n"
         f"FACT-CHECKER ASSESSMENT:\n{state['fact_check_output']}\n\n"
         f"DEVIL'S ADVOCATE:\n{state['devils_advocate_output']}\n\n"
-        "Synthesize all of this into the final research report and write it to a file."
+        "Synthesize all of this into the final research report."
     )
-    await _save_message(state["task_id"], "research_editor", "output", response)
+    await _save_message(state["task_id"], "research_editor", "agent_input", prompt)
+    response = await agent.run(prompt)
+    await _save_message(state["task_id"], "research_editor", "agent_output", response)
     await _update_task_status(state["task_id"], "done")
+    await _save_task_result(state["task_id"], response)
     return {
         "editor_output": response,
         "status": "done",
         "final_result": response,
-        "events": [{"type": "agent_output", "agent": "research_editor", "content": "Research report complete"}],
+        "events": [{"type": "done", "agent": "research_editor", "content": _preview(response)}],
     }
 
 
@@ -172,4 +185,13 @@ async def _update_task_status(task_id: str, status: str):
         await conn.execute(
             "UPDATE tasks SET status=$1, updated_at=NOW() WHERE id=$2",
             status, uuid.UUID(task_id),
+        )
+
+
+async def _save_task_result(task_id: str, result: str):
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE tasks SET result=$1, status='done', updated_at=NOW() WHERE id=$2",
+            result, uuid.UUID(task_id),
         )

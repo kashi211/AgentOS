@@ -30,6 +30,11 @@ class AcademicState(TypedDict):
     events: Annotated[list[dict], lambda a, b: a + b]
 
 
+def _preview(text: str, max_len: int = 280) -> str:
+    flat = text.replace("\n", " ").strip()
+    return flat[:max_len] + "…" if len(flat) > max_len else flat
+
+
 async def summarizer_node(state: AcademicState) -> dict:
     memory = MemoryStore(state["task_id"])
     agent = SummarizerAgent(state["task_id"], memory)
@@ -44,25 +49,28 @@ async def summarizer_node(state: AcademicState) -> dict:
     else:
         prompt += "Summarize all relevant literature on this topic."
 
+    await _save_message(state["task_id"], "summarizer", "agent_input", prompt)
     response = await agent.run(prompt)
-    await _save_message(state["task_id"], "summarizer", "output", response)
+    await _save_message(state["task_id"], "summarizer", "agent_output", response)
     await _update_task_status(state["task_id"], "planning")
     return {
         "summarizer_output": response,
         "status": "planning",
-        "events": [{"type": "agent_output", "agent": "summarizer", "content": f"Literature summaries complete (revision {state['revision_count'] + 1})"}],
+        "events": [{"type": "agent_output", "agent": "summarizer", "content": _preview(response)}],
     }
 
 
 async def critic_node(state: AcademicState) -> dict:
     memory = MemoryStore(state["task_id"])
     agent = CriticAgent(state["task_id"], memory)
-    response = await agent.run(
+    prompt = (
         f"Research topic: {state['goal']}\n\n"
         f"Literature summaries:\n\n{state['summarizer_output']}\n\n"
         "Evaluate the methodological quality of the papers summarized."
     )
-    await _save_message(state["task_id"], "critic", "output", response)
+    await _save_message(state["task_id"], "critic", "agent_input", prompt)
+    response = await agent.run(prompt)
+    await _save_message(state["task_id"], "critic", "agent_output", response)
 
     try:
         review = agent.parse_json(response)
@@ -88,7 +96,7 @@ async def critic_node(state: AcademicState) -> dict:
             "critic_feedback": feedback,
             "revision_count": state["revision_count"] + 1,
             "status": "planning",
-            "events": [{"type": "qa_fail", "agent": "critic", "content": feedback[:200]}],
+            "events": [{"type": "qa_fail", "agent": "critic", "content": feedback[:280]}],
         }
 
 
@@ -101,36 +109,41 @@ def route_after_critic(state: AcademicState) -> str:
 async def literature_synthesizer_node(state: AcademicState) -> dict:
     memory = MemoryStore(state["task_id"])
     agent = LiteratureSynthesizerAgent(state["task_id"], memory)
-    response = await agent.run(
+    prompt = (
         f"Research topic: {state['goal']}\n\n"
         f"LITERATURE SUMMARIES:\n{state['summarizer_output']}\n\n"
         f"METHODOLOGICAL CRITIQUE:\n{state['critic_output']}\n\n"
         "Synthesize the literature into a coherent review narrative."
     )
-    await _save_message(state["task_id"], "literature_synthesizer", "output", response)
+    await _save_message(state["task_id"], "literature_synthesizer", "agent_input", prompt)
+    response = await agent.run(prompt)
+    await _save_message(state["task_id"], "literature_synthesizer", "agent_output", response)
     return {
         "synthesizer_output": response,
         "status": "reviewing",
-        "events": [{"type": "agent_output", "agent": "literature_synthesizer", "content": "Literature synthesis complete"}],
+        "events": [{"type": "agent_output", "agent": "literature_synthesizer", "content": _preview(response)}],
     }
 
 
 async def citation_agent_node(state: AcademicState) -> dict:
     memory = MemoryStore(state["task_id"])
     agent = CitationAgent(state["task_id"], memory)
-    response = await agent.run(
+    prompt = (
         f"Research topic: {state['goal']}\n\n"
         f"LITERATURE SUMMARIES:\n{state['summarizer_output']}\n\n"
         f"SYNTHESIS:\n{state['synthesizer_output']}\n\n"
-        "Produce the final literature review with formatted references and write it to a file."
+        "Produce the final literature review with formatted references."
     )
-    await _save_message(state["task_id"], "citation_agent", "output", response)
+    await _save_message(state["task_id"], "citation_agent", "agent_input", prompt)
+    response = await agent.run(prompt)
+    await _save_message(state["task_id"], "citation_agent", "agent_output", response)
     await _update_task_status(state["task_id"], "done")
+    await _save_task_result(state["task_id"], response)
     return {
         "citation_output": response,
         "status": "done",
         "final_result": response,
-        "events": [{"type": "agent_output", "agent": "citation_agent", "content": "Literature review complete"}],
+        "events": [{"type": "done", "agent": "citation_agent", "content": _preview(response)}],
     }
 
 
@@ -171,4 +184,13 @@ async def _update_task_status(task_id: str, status: str):
         await conn.execute(
             "UPDATE tasks SET status=$1, updated_at=NOW() WHERE id=$2",
             status, uuid.UUID(task_id),
+        )
+
+
+async def _save_task_result(task_id: str, result: str):
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE tasks SET result=$1, status='done', updated_at=NOW() WHERE id=$2",
+            result, uuid.UUID(task_id),
         )
