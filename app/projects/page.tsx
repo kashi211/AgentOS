@@ -661,7 +661,7 @@ export default function ProjectsPage() {
   const selectedNode = pipeline.find(n => n.role === selectedAgent);
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col min-h-full">
       {/* ── Header ── */}
       <div className="px-4 sm:px-8 lg:px-10 pt-8 pb-4 border-b shrink-0" style={{ borderColor: "var(--card-border)" }}>
         <div className="mb-4">
@@ -689,9 +689,9 @@ export default function ProjectsPage() {
       </div>
 
       {/* ── Body ── */}
-      <div className="flex flex-1 min-h-0 overflow-hidden">
-        {/* Task list */}
-        <div className="w-64 shrink-0 border-r flex flex-col min-h-0" style={{ borderColor: "var(--card-border)", background: "#fafafa" }}>
+      <div className="flex flex-1">
+        {/* Task list — sticky sidebar that scrolls independently */}
+        <div className="w-64 shrink-0 border-r flex flex-col sticky top-0" style={{ borderColor: "var(--card-border)", background: "#fafafa", height: "100vh", maxHeight: "100vh" }}>
           <div className="p-3 flex items-center justify-between border-b shrink-0" style={{ borderColor: "var(--card-border)" }}>
             <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--muted-light)" }}>{tasks.length} projects</span>
             <button onClick={fetchTasks} className="p-1 rounded" style={{ color: "var(--muted)" }}><RefreshCw size={13}/></button>
@@ -727,7 +727,7 @@ export default function ProjectsPage() {
         </div>
 
         {/* Main panel */}
-        <div className="flex-1 flex flex-col min-h-0 min-w-0">
+        <div className="flex-1 flex flex-col min-w-0">
           {!selectedId ? (
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center max-w-sm px-6">
@@ -781,8 +781,8 @@ export default function ProjectsPage() {
               {loadingMessages ? (
                 <div className="flex-1 flex items-center justify-center"><Loader2 size={20} className="animate-spin" style={{ color: "var(--muted)" }}/></div>
               ) : viewMode === "pipeline" ? (
-                <div className="flex-1 overflow-y-auto">
-                  {/* Pipeline graph — sticky at top so you always see the nodes while reading */}
+                <div>
+                  {/* Pipeline graph — sticky within <main> scroll so nodes stay visible */}
                   <div className="sticky top-0 z-10" style={{ background: "var(--card)" }}>
                     <PipelineGraph
                       nodes={pipeline}
