@@ -256,7 +256,11 @@ function renderInline(text: string): React.ReactNode[] {
 }
 
 function MarkdownContent({ content }: { content: string }) {
-  const lines = content.split("\n");
+  // Ensure headings and HR always start on their own line
+  const normalized = content
+    .replace(/([^\n])(#{1,4} )/g, "$1\n$2")
+    .replace(/([^\n])(---+\s*)(\n|$)/g, "$1\n$2$3");
+  const lines = normalized.split("\n");
   const nodes: React.ReactNode[] = [];
   let i = 0, inCode = false, codeLines: string[] = [];
   while (i < lines.length) {
@@ -552,7 +556,7 @@ function AgentDetail({ node, streamingToken, agentDef }: { node: PipelineNode; s
               </span>
             )}
           </div>
-          {currentTurn?.output ? (
+          {currentTurn?.output && (!streamingToken || currentTurn.output.content.length >= streamingToken.length) ? (
             <div className="rounded-xl p-4" style={{ background: "var(--background, #fff)", border: "1px solid var(--card-border)" }}>
               <ExpandableContent content={currentTurn.output.content} renderAs="markdown" thresholdChars={600} />
             </div>
@@ -785,7 +789,8 @@ export default function ProjectsPage() {
       if (r.ok) {
         const d = await r.json();
         setMessages(d.messages ?? []);
-        setLiveEvents([]); // clear live events — DB has the full content now
+        setLiveEvents([]);       // DB has full content now
+        setStreamingContent({}); // safe to clear — full DB output takes over
       }
     } catch {}
   };
@@ -838,14 +843,9 @@ export default function ProjectsPage() {
         setSelectedAgent(ev.agent);
       }
 
-      // When DB output arrives for a role, clear its streaming buffer
-      if (ev.type === "agent_output") {
-        setStreamingContent(prev => {
-          const next = { ...prev };
-          delete next[ev.agent];
-          return next;
-        });
-      }
+      // Don't clear streaming buffer on agent_output — the 300-char live preview
+      // is uglier than the full streamed content. Keep streaming content visible
+      // until fetchMessages brings the real full DB output.
 
       if (ev.type === "cancelled") {
         setTasks(prev => prev.map(t => t.id !== taskId ? t : { ...t, status: "cancelled" }));
