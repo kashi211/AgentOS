@@ -283,6 +283,40 @@ function PipelineGraph({ nodes, selected, onSelect }: {
 }
 
 /* ─── Agent detail: split INPUT / OUTPUT panel ───────────── */
+/* Expandable text block used in INPUT/OUTPUT/Delivery panels */
+function ExpandableContent({ content, renderAs, thresholdChars = 1200 }: {
+  content: string;
+  renderAs: "mono" | "markdown";
+  thresholdChars?: number;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const isLong = content.length > thresholdChars;
+  const body = renderAs === "markdown"
+    ? <MarkdownContent content={content} />
+    : <pre className="text-xs font-mono leading-relaxed whitespace-pre-wrap break-words" style={{ color: "var(--muted)", fontFamily: "var(--font-mono, monospace)" }}>{content}</pre>;
+
+  if (!isLong) return <>{body}</>;
+
+  return (
+    <div>
+      <div className="relative" style={!expanded ? { maxHeight: 420, overflow: "hidden" } : undefined}>
+        {body}
+        {!expanded && (
+          <div className="absolute bottom-0 left-0 right-0 h-20 pointer-events-none"
+            style={{ background: "linear-gradient(transparent, var(--background, #fff))" }} />
+        )}
+      </div>
+      <button
+        onClick={() => setExpanded(e => !e)}
+        className="mt-3 flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-all"
+        style={{ background: "var(--card)", border: "1px solid var(--card-border)", color: "var(--accent)" }}
+      >
+        {expanded ? "▲ Show less" : `▼ Show full content (${content.length.toLocaleString()} chars)`}
+      </button>
+    </div>
+  );
+}
+
 function AgentDetail({ node }: { node: PipelineNode }) {
   const [turn, setTurn] = useState(node.turns.length - 1);
   const color = agentColor(node.role);
@@ -293,9 +327,9 @@ function AgentDetail({ node }: { node: PipelineNode }) {
   const currentTurn = node.turns[turn] ?? node.turns[0];
 
   return (
-    <div className="flex-1 flex flex-col min-h-0">
+    <div className="border-t" style={{ borderColor: "var(--card-border)" }}>
       {/* Agent detail header */}
-      <div className="px-6 py-3 flex items-center justify-between gap-4 shrink-0" style={{ borderBottom: "1px solid var(--card-border)" }}>
+      <div className="px-6 py-3 flex items-center justify-between gap-4" style={{ borderBottom: "1px solid var(--card-border)", background: "var(--card)" }}>
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${color}15`, border: `2px solid ${color}30` }}>
             <Bot size={15} style={{ color }} />
@@ -317,16 +351,13 @@ function AgentDetail({ node }: { node: PipelineNode }) {
 
         {/* Turn selector */}
         {node.turns.length > 1 && (
-          <div className="flex items-center gap-1 p-0.5 rounded-lg" style={{ background: "var(--card)", border: "1px solid var(--card-border)" }}>
-            {node.turns.map((t, i) => (
+          <div className="flex items-center gap-1 p-0.5 rounded-lg" style={{ background: "var(--background, #fff)", border: "1px solid var(--card-border)" }}>
+            {node.turns.map((_t, i) => (
               <button
                 key={i}
                 onClick={() => setTurn(i)}
                 className="text-xs px-3 py-1.5 rounded-md font-semibold transition-all"
-                style={{
-                  background: turn === i ? color : "transparent",
-                  color: turn === i ? "#fff" : "var(--muted)",
-                }}
+                style={{ background: turn === i ? color : "transparent", color: turn === i ? "#fff" : "var(--muted)" }}
               >
                 Turn {i + 1}
               </button>
@@ -335,44 +366,34 @@ function AgentDetail({ node }: { node: PipelineNode }) {
         )}
       </div>
 
-      {/* Split pane: INPUT left, OUTPUT right */}
-      <div className="flex-1 flex min-h-0">
+      {/* Split pane: INPUT left, OUTPUT right — natural height, page scrolls */}
+      <div className="flex" style={{ minHeight: 200 }}>
 
         {/* INPUT panel */}
         {currentTurn?.input ? (
-          <div className="w-2/5 flex flex-col min-h-0 shrink-0" style={{ borderRight: "1px solid var(--card-border)" }}>
-            <div className="px-4 py-2.5 flex items-center gap-2 shrink-0" style={{ borderBottom: "1px solid var(--card-border)", background: "#fffbeb" }}>
+          <div className="w-2/5 shrink-0 p-4" style={{ borderRight: "1px solid var(--card-border)", background: "#fffbeb" }}>
+            <div className="flex items-center gap-2 mb-3">
               <ArrowDownRight size={11} style={{ color: "#92400e" }} />
               <span className="text-xs font-bold tracking-wider" style={{ color: "#92400e" }}>INPUT</span>
               <span className="text-xs font-mono ml-auto" style={{ color: "#a16207" }}>
                 {currentTurn.input.content.length.toLocaleString()} chars
               </span>
             </div>
-            <div className="flex-1 overflow-y-auto p-4">
-              <pre className="text-xs font-mono leading-relaxed whitespace-pre-wrap break-words" style={{ color: "var(--muted)", fontFamily: "var(--font-mono, monospace)" }}>
-                {currentTurn.input.content}
-              </pre>
-            </div>
+            <ExpandableContent content={currentTurn.input.content} renderAs="mono" thresholdChars={800} />
           </div>
         ) : (
-          <div className="w-2/5 flex flex-col min-h-0 shrink-0" style={{ borderRight: "1px solid var(--card-border)", background: "#fafafa" }}>
-            <div className="px-4 py-2.5 flex items-center gap-2 shrink-0" style={{ borderBottom: "1px solid var(--card-border)" }}>
-              <ArrowDownRight size={11} style={{ color: "var(--muted-light)" }} />
-              <span className="text-xs font-bold tracking-wider" style={{ color: "var(--muted-light)" }}>INPUT</span>
-            </div>
-            <div className="flex-1 flex items-center justify-center">
-              <div className="text-center">
-                <Inbox size={20} className="mx-auto mb-2" style={{ color: "var(--muted-light)" }} />
-                <p className="text-xs" style={{ color: "var(--muted-light)" }}>No input captured</p>
-                <p className="text-xs mt-1" style={{ color: "var(--muted-light)", fontSize: 10 }}>Run a new task to see agent inputs</p>
-              </div>
+          <div className="w-2/5 shrink-0 flex items-center justify-center py-12" style={{ borderRight: "1px solid var(--card-border)", background: "#fafafa" }}>
+            <div className="text-center">
+              <Inbox size={20} className="mx-auto mb-2" style={{ color: "var(--muted-light)" }} />
+              <p className="text-xs" style={{ color: "var(--muted-light)" }}>No input captured</p>
+              <p className="text-xs mt-1" style={{ color: "var(--muted-light)", fontSize: 10 }}>Run a new task to see agent inputs</p>
             </div>
           </div>
         )}
 
         {/* OUTPUT panel */}
-        <div className="flex-1 flex flex-col min-h-0">
-          <div className="px-4 py-2.5 flex items-center gap-2 shrink-0" style={{ borderBottom: "1px solid var(--card-border)", background: `${color}06` }}>
+        <div className="flex-1 p-5">
+          <div className="flex items-center gap-2 mb-3">
             <Bot size={11} style={{ color }} />
             <span className="text-xs font-bold tracking-wider" style={{ color }}>OUTPUT</span>
             {currentTurn?.output && (
@@ -381,22 +402,20 @@ function AgentDetail({ node }: { node: PipelineNode }) {
               </span>
             )}
           </div>
-          <div className="flex-1 overflow-y-auto px-5 py-4">
-            {currentTurn?.output ? (
-              <MarkdownContent content={currentTurn.output.content} />
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full gap-3">
-                {node.isActive ? (
-                  <>
-                    <Loader2 size={20} className="animate-spin" style={{ color }} />
-                    <p className="text-sm font-medium" style={{ color }}>Agent is working…</p>
-                  </>
-                ) : (
-                  <p className="text-sm" style={{ color: "var(--muted)" }}>No output yet</p>
-                )}
-              </div>
-            )}
-          </div>
+          {currentTurn?.output ? (
+            <ExpandableContent content={currentTurn.output.content} renderAs="markdown" thresholdChars={1200} />
+          ) : (
+            <div className="flex flex-col items-center justify-center py-12 gap-3">
+              {node.isActive ? (
+                <>
+                  <Loader2 size={20} className="animate-spin" style={{ color }} />
+                  <p className="text-sm font-medium" style={{ color }}>Agent is working…</p>
+                </>
+              ) : (
+                <p className="text-sm" style={{ color: "var(--muted)" }}>No output yet</p>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -485,7 +504,7 @@ function DeliveryPanel({ task, messages, preset }: { task: Task; messages: Messa
           deliverable ? (
             <div>
               <div className="flex items-center gap-2 mb-3"><ScrollText size={14} style={{ color: "var(--muted)" }}/><span className="text-xs font-semibold capitalize" style={{ color: "var(--muted)" }}>Final output · {deliverable.agent_role.replace(/_/g," ")}</span></div>
-              <div className="rounded-xl px-5 py-4 max-h-80 overflow-y-auto" style={{ background: "var(--card)", border: "1px solid var(--card-border)" }}><MarkdownContent content={deliverable.content}/></div>
+              <div className="rounded-xl px-5 py-4" style={{ background: "var(--card)", border: "1px solid var(--card-border)" }}><ExpandableContent content={deliverable.content} renderAs="markdown" thresholdChars={1200} /></div>
             </div>
           ) : isDevPreset ? (
             <div className="text-center py-4"><Code2 size={24} className="mx-auto mb-2" style={{ color: "var(--muted-light)" }}/><p className="text-sm font-medium mb-1" style={{ color: "var(--foreground)" }}>App built</p><Link href={`/preview/${task.id}`} target="_blank" className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white mt-2" style={{ background: "var(--accent)" }}><ExternalLink size={13}/> Open preview</Link></div>
@@ -742,18 +761,20 @@ export default function ProjectsPage() {
               {loadingMessages ? (
                 <div className="flex-1 flex items-center justify-center"><Loader2 size={20} className="animate-spin" style={{ color: "var(--muted)" }}/></div>
               ) : viewMode === "pipeline" ? (
-                <div className="flex-1 flex flex-col min-h-0">
-                  {/* Pipeline graph */}
-                  <PipelineGraph
-                    nodes={pipeline}
-                    selected={selectedAgent}
-                    onSelect={role => setSelectedAgent(role)}
-                  />
-                  {/* Agent detail pane */}
+                <div className="flex-1 overflow-y-auto">
+                  {/* Pipeline graph — sticky at top so you always see the nodes while reading */}
+                  <div className="sticky top-0 z-10" style={{ background: "var(--card)" }}>
+                    <PipelineGraph
+                      nodes={pipeline}
+                      selected={selectedAgent}
+                      onSelect={role => setSelectedAgent(role)}
+                    />
+                  </div>
+                  {/* Agent detail pane — natural height, full content visible */}
                   {selectedNode ? (
                     <AgentDetail node={selectedNode} />
                   ) : (
-                    <div className="flex-1 flex items-center justify-center">
+                    <div className="flex items-center justify-center py-16">
                       <p className="text-sm" style={{ color: "var(--muted)" }}>Click an agent in the pipeline above to inspect their input and output.</p>
                     </div>
                   )}
