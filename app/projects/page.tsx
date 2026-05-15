@@ -558,10 +558,8 @@ function AgentDetail({ node, streamingToken, agentDef }: { node: PipelineNode; s
             </div>
           ) : streamingToken ? (
             <div className="rounded-xl p-4" style={{ background: "var(--background, #fff)", border: `1px solid ${color}30` }}>
-              <pre className="text-xs font-mono leading-relaxed whitespace-pre-wrap break-words" style={{ color: "var(--foreground)" }}>
-                {streamingToken}
-                <span className="inline-block w-2 h-4 ml-0.5 align-middle animate-pulse" style={{ background: color }} />
-              </pre>
+              <MarkdownContent content={streamingToken} />
+              <span className="inline-block w-2 h-3.5 ml-0.5 align-middle animate-pulse rounded-sm" style={{ background: color }} />
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center py-12 gap-3">
@@ -825,12 +823,13 @@ export default function ProjectsPage() {
     ws.onmessage = e => {
       const ev: LiveEvent = JSON.parse(e.data);
 
-      // Handle streaming tokens
+      // Handle streaming tokens — also auto-focus the active agent
       if (ev.type === "token") {
         setStreamingContent(prev => ({
           ...prev,
           [ev.agent]: (prev[ev.agent] ?? "") + ev.content,
         }));
+        setSelectedAgent(ev.agent);
         return;
       }
 
