@@ -55,6 +55,315 @@ interface PipelineNode {
   hasFailed: boolean;   // at least one qa_fail turn
 }
 
+/* ─── Refinement questions per preset ───────────────────── */
+interface RefinementQuestion {
+  id: string;
+  question: string;
+  multi?: boolean;       // allow multiple selections
+  options: { label: string; emoji: string; value: string }[];
+}
+
+const PRESET_QUESTIONS: Record<string, RefinementQuestion[]> = {
+  "software-dev": [
+    {
+      id: "platform",
+      question: "What type of app?",
+      options: [
+        { label: "Web app", emoji: "🌐", value: "web app" },
+        { label: "Mobile", emoji: "📱", value: "mobile app" },
+        { label: "CLI tool", emoji: "⌨️", value: "command-line tool" },
+        { label: "API / Backend", emoji: "🔌", value: "API/backend service" },
+      ],
+    },
+    {
+      id: "stack",
+      question: "Preferred tech stack?",
+      options: [
+        { label: "React / Next.js", emoji: "⚛️", value: "React/Next.js" },
+        { label: "Vanilla HTML/CSS/JS", emoji: "🟨", value: "vanilla HTML, CSS, and JavaScript" },
+        { label: "Node.js", emoji: "🟩", value: "Node.js" },
+        { label: "Python", emoji: "🐍", value: "Python" },
+      ],
+    },
+    {
+      id: "priority",
+      question: "What matters most?",
+      options: [
+        { label: "Working fast", emoji: "⚡", value: "ship quickly with minimal code" },
+        { label: "Full-featured", emoji: "🚀", value: "full-featured and complete" },
+        { label: "Clean & tested", emoji: "✅", value: "well-structured, clean, and tested" },
+        { label: "Beautiful UI", emoji: "✨", value: "polished, visually beautiful UI" },
+      ],
+    },
+  ],
+  "research-intelligence": [
+    {
+      id: "depth",
+      question: "How deep should the research go?",
+      options: [
+        { label: "Quick overview", emoji: "🔍", value: "a quick overview with key highlights" },
+        { label: "In-depth analysis", emoji: "🧠", value: "an in-depth, thorough analysis" },
+        { label: "Executive summary", emoji: "📋", value: "a concise executive summary" },
+        { label: "Comprehensive report", emoji: "📚", value: "a comprehensive, fully detailed report" },
+      ],
+    },
+    {
+      id: "audience",
+      question: "Who is this for?",
+      options: [
+        { label: "General audience", emoji: "👥", value: "a general, non-specialist audience" },
+        { label: "Domain experts", emoji: "🎓", value: "domain experts and specialists" },
+        { label: "Business / exec", emoji: "💼", value: "business executives and decision-makers" },
+        { label: "Myself", emoji: "🙋", value: "personal use and understanding" },
+      ],
+    },
+    {
+      id: "format",
+      question: "Preferred output format?",
+      options: [
+        { label: "Narrative report", emoji: "📝", value: "a flowing narrative report" },
+        { label: "Bullet points", emoji: "•", value: "structured bullet points" },
+        { label: "Pros & cons", emoji: "⚖️", value: "a pros and cons comparison" },
+        { label: "Data-heavy", emoji: "📊", value: "data-driven with statistics and evidence" },
+      ],
+    },
+  ],
+  "investment-analysis": [
+    {
+      id: "horizon",
+      question: "Investment horizon?",
+      options: [
+        { label: "Short-term (<1yr)", emoji: "⚡", value: "a short-term horizon under 1 year" },
+        { label: "Medium-term (1–3yr)", emoji: "📅", value: "a medium-term horizon of 1–3 years" },
+        { label: "Long-term (5yr+)", emoji: "🏔️", value: "a long-term horizon of 5+ years" },
+      ],
+    },
+    {
+      id: "risk",
+      question: "Risk appetite?",
+      options: [
+        { label: "Conservative", emoji: "🛡️", value: "a conservative, low-risk approach" },
+        { label: "Moderate", emoji: "⚖️", value: "a balanced, moderate-risk approach" },
+        { label: "Aggressive", emoji: "🔥", value: "an aggressive, high-risk/high-reward approach" },
+      ],
+    },
+    {
+      id: "focus",
+      question: "What to focus on?",
+      options: [
+        { label: "Fundamentals", emoji: "📊", value: "fundamental financial analysis" },
+        { label: "Market trends", emoji: "📈", value: "market trends and momentum" },
+        { label: "Risk factors", emoji: "⚠️", value: "risk factors and downside scenarios" },
+        { label: "Competitor landscape", emoji: "🏁", value: "competitive landscape and market position" },
+      ],
+    },
+  ],
+  "legal-review": [
+    {
+      id: "doc_type",
+      question: "Type of document?",
+      options: [
+        { label: "Contract", emoji: "📄", value: "a contract" },
+        { label: "Policy / Terms", emoji: "📋", value: "a policy or terms of service" },
+        { label: "Agreement / NDA", emoji: "🤝", value: "an agreement or NDA" },
+        { label: "Regulation / Law", emoji: "⚖️", value: "a regulation or legal statute" },
+      ],
+    },
+    {
+      id: "focus",
+      question: "What to focus on?",
+      options: [
+        { label: "Risk identification", emoji: "🚨", value: "identifying risks and red flags" },
+        { label: "Compliance check", emoji: "✅", value: "compliance with relevant regulations" },
+        { label: "Plain-language summary", emoji: "💬", value: "a plain-language summary of key terms" },
+        { label: "Missing clauses", emoji: "🔍", value: "missing or ambiguous clauses" },
+      ],
+    },
+    {
+      id: "jurisdiction",
+      question: "Jurisdiction?",
+      options: [
+        { label: "United States", emoji: "🇺🇸", value: "US jurisdiction" },
+        { label: "United Kingdom", emoji: "🇬🇧", value: "UK jurisdiction" },
+        { label: "European Union", emoji: "🇪🇺", value: "EU jurisdiction" },
+        { label: "General / International", emoji: "🌍", value: "general international context" },
+      ],
+    },
+  ],
+  "content-marketing": [
+    {
+      id: "content_type",
+      question: "What type of content?",
+      options: [
+        { label: "Blog post / Article", emoji: "📝", value: "a blog post or article" },
+        { label: "Social media", emoji: "📱", value: "social media content" },
+        { label: "Email campaign", emoji: "📧", value: "an email marketing campaign" },
+        { label: "Ad copy", emoji: "📣", value: "advertising copy" },
+      ],
+    },
+    {
+      id: "audience",
+      question: "Target audience?",
+      options: [
+        { label: "B2B professionals", emoji: "💼", value: "B2B professionals and businesses" },
+        { label: "General consumers", emoji: "🛍️", value: "general consumers" },
+        { label: "Tech-savvy users", emoji: "💻", value: "tech-savvy early adopters" },
+        { label: "Niche community", emoji: "🎯", value: "a specific niche community" },
+      ],
+    },
+    {
+      id: "tone",
+      question: "Desired tone?",
+      options: [
+        { label: "Professional", emoji: "👔", value: "professional and authoritative" },
+        { label: "Casual & friendly", emoji: "😊", value: "casual, warm, and friendly" },
+        { label: "Bold & persuasive", emoji: "⚡", value: "bold, energetic, and persuasive" },
+        { label: "Educational", emoji: "📚", value: "educational and informative" },
+      ],
+    },
+  ],
+  "academic-review": [
+    {
+      id: "level",
+      question: "Academic level?",
+      options: [
+        { label: "Undergraduate", emoji: "🎒", value: "undergraduate level" },
+        { label: "Graduate / Masters", emoji: "🎓", value: "graduate/masters level" },
+        { label: "PhD / Doctoral", emoji: "🔬", value: "PhD/doctoral level" },
+        { label: "Professional researcher", emoji: "🧪", value: "professional researcher" },
+      ],
+    },
+    {
+      id: "focus",
+      question: "What's the main focus?",
+      options: [
+        { label: "Literature review", emoji: "📚", value: "a comprehensive literature review" },
+        { label: "Critical analysis", emoji: "🧠", value: "critical analysis and argumentation" },
+        { label: "Methodology", emoji: "🔬", value: "methodology and research design" },
+        { label: "Synthesis & conclusions", emoji: "✏️", value: "synthesis and drawing conclusions" },
+      ],
+    },
+    {
+      id: "citation",
+      question: "Citation style?",
+      options: [
+        { label: "APA", emoji: "📋", value: "APA citation style" },
+        { label: "MLA", emoji: "📋", value: "MLA citation style" },
+        { label: "Chicago", emoji: "📋", value: "Chicago citation style" },
+        { label: "Any / Flexible", emoji: "✅", value: "any citation style" },
+      ],
+    },
+  ],
+};
+
+function buildEnrichedGoal(goal: string, answers: Record<string, string>, presetId: string): string {
+  const questions = PRESET_QUESTIONS[presetId] ?? [];
+  const context = questions
+    .map(q => {
+      const answer = answers[q.id];
+      if (!answer) return null;
+      const opt = q.options.find(o => o.value === answer);
+      return `- ${q.question.replace("?", "")}: ${opt?.label ?? answer}`;
+    })
+    .filter(Boolean)
+    .join("\n");
+  if (!context) return goal;
+  return `${goal}\n\nAdditional context:\n${context}`;
+}
+
+/* ─── Refinement modal ───────────────────────────────────── */
+function RefinementModal({
+  presetId,
+  presetColor,
+  onConfirm,
+  onSkip,
+}: {
+  presetId: string;
+  presetColor: string;
+  onConfirm: (answers: Record<string, string>) => void;
+  onSkip: () => void;
+}) {
+  const questions = PRESET_QUESTIONS[presetId] ?? [];
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+
+  const toggle = (qId: string, value: string) => {
+    setAnswers(prev => ({ ...prev, [qId]: prev[qId] === value ? "" : value }));
+  };
+
+  const answeredCount = Object.values(answers).filter(Boolean).length;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }}>
+      <div className="w-full max-w-lg rounded-2xl overflow-hidden shadow-2xl" style={{ background: "var(--card)", border: "1px solid var(--card-border)" }}>
+        {/* Header */}
+        <div className="px-6 py-5" style={{ borderBottom: "1px solid var(--card-border)", background: `${presetColor}08` }}>
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: presetColor, opacity: 0.9 }}>
+              <Lightbulb size={15} color="#fff" />
+            </div>
+            <div>
+              <p className="font-bold text-sm" style={{ color: "var(--foreground)" }}>Quick context — 3 questions</p>
+              <p className="text-xs" style={{ color: "var(--muted)" }}>Help agents understand exactly what you need</p>
+            </div>
+            <button onClick={onSkip} className="ml-auto text-xs font-medium px-3 py-1.5 rounded-lg" style={{ color: "var(--muted)", background: "var(--background, #fff)", border: "1px solid var(--card-border)" }}>
+              Skip →
+            </button>
+          </div>
+        </div>
+
+        {/* Questions */}
+        <div className="px-6 py-5 space-y-6">
+          {questions.map((q, qi) => (
+            <div key={q.id}>
+              <p className="text-xs font-bold mb-2.5 flex items-center gap-2" style={{ color: "var(--foreground)" }}>
+                <span className="w-5 h-5 rounded-full flex items-center justify-center text-white text-xs shrink-0" style={{ background: presetColor, fontSize: 10 }}>{qi + 1}</span>
+                {q.question}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {q.options.map(opt => {
+                  const selected = answers[q.id] === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      onClick={() => toggle(q.id, opt.value)}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all"
+                      style={{
+                        background: selected ? presetColor : "var(--background, #fff)",
+                        color: selected ? "#fff" : "var(--foreground)",
+                        border: `1.5px solid ${selected ? presetColor : "var(--card-border)"}`,
+                        boxShadow: selected ? `0 2px 8px ${presetColor}40` : "none",
+                      }}
+                    >
+                      <span>{opt.emoji}</span>
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 flex items-center justify-between" style={{ borderTop: "1px solid var(--card-border)", background: "var(--background, #fff)" }}>
+          <p className="text-xs" style={{ color: "var(--muted)" }}>
+            {answeredCount}/{questions.length} answered
+            {answeredCount === 0 && " · you can skip"}
+          </p>
+          <button
+            onClick={() => onConfirm(answers)}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white transition-all"
+            style={{ background: presetColor, boxShadow: `0 2px 12px ${presetColor}50` }}
+          >
+            <Send size={13} />
+            Run with context
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ─── Constants ──────────────────────────────────────────── */
 const PRESET_ICONS: Record<string, React.ElementType> = {
   "software-dev": Code2, "research-intelligence": Search,
@@ -569,6 +878,7 @@ export default function ProjectsPage() {
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<ViewMode>("pipeline");
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
+  const [showRefine, setShowRefine] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
@@ -621,11 +931,22 @@ export default function ProjectsPage() {
     wsRef.current = ws;
   };
 
-  const submitTask = async () => {
+  const submitTask = () => {
     if (!goal.trim() || submitting) return;
+    // If this preset has refinement questions, show the modal first
+    if (PRESET_QUESTIONS[selectedPresetId]?.length) {
+      setShowRefine(true);
+    } else {
+      confirmTask({});
+    }
+  };
+
+  const confirmTask = async (answers: Record<string, string>) => {
+    setShowRefine(false);
     setSubmitting(true);
+    const enrichedGoal = buildEnrichedGoal(goal.trim(), answers, selectedPresetId);
     try {
-      const r = await fetch(`${API}/tasks/`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ goal: goal.trim(), preset_id: selectedPresetId }) });
+      const r = await fetch(`${API}/tasks/`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ goal: enrichedGoal, preset_id: selectedPresetId }) });
       if (r.ok) {
         const d = await r.json();
         setGoal("");
@@ -662,6 +983,15 @@ export default function ProjectsPage() {
 
   return (
     <div className="flex flex-col min-h-full">
+      {/* ── Refinement modal ── */}
+      {showRefine && (
+        <RefinementModal
+          presetId={selectedPresetId}
+          presetColor={selectedPreset?.categoryColor ?? "var(--accent)"}
+          onConfirm={confirmTask}
+          onSkip={() => confirmTask({})}
+        />
+      )}
       {/* ── Header ── */}
       <div className="px-4 sm:px-8 lg:px-10 pt-8 pb-4 border-b shrink-0" style={{ borderColor: "var(--card-border)" }}>
         <div className="mb-4">
