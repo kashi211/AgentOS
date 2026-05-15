@@ -500,15 +500,15 @@ function AgentDetail({ node }: { node: PipelineNode }) {
               </span>
             </div>
             <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.6)", border: "1px solid #fde68a" }}>
-              <ExpandableContent content={currentTurn.input.content} renderAs="mono" thresholdChars={800} />
+              <ExpandableContent content={currentTurn.input.content} renderAs="mono" thresholdChars={500} />
             </div>
           </div>
         ) : (
           <div className="w-2/5 shrink-0 flex items-center justify-center py-12" style={{ borderRight: "1px solid var(--card-border)", background: "#fafafa" }}>
             <div className="text-center">
               <Inbox size={20} className="mx-auto mb-2" style={{ color: "var(--muted-light)" }} />
-              <p className="text-xs font-medium" style={{ color: "var(--muted-light)" }}>No input captured</p>
-              <p className="text-xs mt-1" style={{ color: "var(--muted-light)", fontSize: 10 }}>Input saved for new tasks only</p>
+              <p className="text-xs font-medium" style={{ color: "var(--muted-light)" }}>No input recorded</p>
+              <p className="text-xs mt-1" style={{ color: "var(--muted-light)", fontSize: 10 }}>Context from previous agents flows here</p>
             </div>
           </div>
         )}
@@ -526,7 +526,7 @@ function AgentDetail({ node }: { node: PipelineNode }) {
           </div>
           {currentTurn?.output ? (
             <div className="rounded-xl p-4" style={{ background: "var(--background, #fff)", border: "1px solid var(--card-border)" }}>
-              <ExpandableContent content={currentTurn.output.content} renderAs="markdown" thresholdChars={1200} />
+              <ExpandableContent content={currentTurn.output.content} renderAs="markdown" thresholdChars={600} />
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center py-12 gap-3">

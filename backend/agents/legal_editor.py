@@ -1,4 +1,3 @@
-import os
 from agents.base import BaseAgent, SONNET
 
 
@@ -10,6 +9,8 @@ class LegalEditorAgent(BaseAgent):
     @property
     def system_prompt(self) -> str:
         return """You are a legal editor. Synthesize the document reader's summary, the flagged clauses, and the protection checker's feedback into a professional legal review memo.
+
+Write the COMPLETE memo directly in your response — do NOT use any file tools or say you will write later.
 
 ## LEGAL REVIEW MEMO: [Document Title]
 
@@ -31,30 +32,4 @@ Specific suggested language changes.
 ### Bottom Line
 Should the client sign as-is, negotiate, or refuse? What are the 2-3 non-negotiables?
 
-Write the file when complete."""
-
-    @property
-    def tools(self) -> list[dict]:
-        return [
-            {
-                "name": "write_file",
-                "description": "Write the legal review memo to disk",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {
-                        "filename": {"type": "string"},
-                        "content": {"type": "string"},
-                    },
-                    "required": ["filename", "content"],
-                },
-            }
-        ]
-
-    async def tool_write_file(self, filename: str, content: str) -> str:
-        output_dir = os.path.join("output", self.task_id)
-        os.makedirs(output_dir, exist_ok=True)
-        safe_name = os.path.basename(filename)
-        path = os.path.join(output_dir, safe_name)
-        with open(path, "w") as f:
-            f.write(content)
-        return f"Written to {safe_name} ({len(content)} chars)"
+Minimum 500 words. Start immediately with the memo — no preamble."""
