@@ -79,7 +79,6 @@ export default function ProjectPage() {
         setThreads(saved.map(t => t.done || t.failed ? t : { ...t, failed: true }));
       }
     } catch {}
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storageKey]);
 
   // Persist threads to localStorage whenever they change
@@ -377,7 +376,7 @@ export default function ProjectPage() {
                           </div>
                           {truncated && (
                             <button
-                              onClick={() => setExpanded((s) => { const n = new Set(s); isExp ? n.delete(key) : n.add(key); return n; })}
+                              onClick={() => setExpanded((s) => { const n = new Set(s); if (isExp) n.delete(key); else n.add(key); return n; })}
                               style={{ marginTop: 3, background: "none", border: "none", color: "#475569", fontSize: 10, cursor: "pointer", padding: "2px 0" }}
                             >
                               {isExp ? "show less ↑" : "show more ↓"}

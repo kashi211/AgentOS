@@ -220,11 +220,10 @@ function PipelineNodeCard({ node, selected, onClick }: {
 }
 
 /* ─── Pipeline graph ─────────────────────────────────────── */
-function PipelineGraph({ nodes, selected, onSelect, taskStatus }: {
+function PipelineGraph({ nodes, selected, onSelect }: {
   nodes: PipelineNode[];
   selected: string | null;
   onSelect: (role: string) => void;
-  taskStatus: TaskStatus;
 }) {
   if (nodes.length === 0) return (
     <div className="flex items-center justify-center gap-2 py-8" style={{ borderBottom: "1px solid var(--card-border)" }}>
@@ -284,7 +283,7 @@ function PipelineGraph({ nodes, selected, onSelect, taskStatus }: {
 }
 
 /* ─── Agent detail: split INPUT / OUTPUT panel ───────────── */
-function AgentDetail({ node, allNodes }: { node: PipelineNode; allNodes: PipelineNode[] }) {
+function AgentDetail({ node }: { node: PipelineNode }) {
   const [turn, setTurn] = useState(node.turns.length - 1);
   const color = agentColor(node.role);
 
@@ -537,7 +536,7 @@ export default function ProjectsPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [liveEvents, setLiveEvents] = useState<Message[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
-  const [goalExpanded, setGoalExpanded] = useState(false);
+
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<ViewMode>("pipeline");
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
@@ -564,7 +563,6 @@ export default function ProjectsPage() {
 
   const selectTask = async (taskId: string) => {
     setSelectedId(taskId);
-    setGoalExpanded(false);
     setLiveEvents([]);
     setSelectedAgent(null);
     setLoadingMessages(true);
@@ -613,11 +611,12 @@ export default function ProjectsPage() {
   const allMessages = [...messages, ...liveEvents];
   const pipeline = buildPipeline(allMessages);
 
-  // Auto-select last active node
+  // Auto-select last active node when pipeline populates (only if nothing is selected)
   useEffect(() => {
     if (pipeline.length > 0 && !selectedAgent) {
       setSelectedAgent(pipeline[pipeline.length - 1].role);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pipeline.length]);
 
   const selectedNode = pipeline.find(n => n.role === selectedAgent);
@@ -680,7 +679,7 @@ export default function ProjectsPage() {
                       {isLong && !cardExp ? task.goal.slice(0, 70) + "…" : task.goal}
                     </p>
                   </div>
-                  {isLong && <button onClick={e => { e.stopPropagation(); setExpandedCards(prev => { const n = new Set(prev); cardExp ? n.delete(task.id) : n.add(task.id); return n; }); }} className="text-xs mt-1 font-medium" style={{ color: "var(--accent)" }}>{cardExp ? "Less" : "More"}</button>}
+                  {isLong && <button onClick={e => { e.stopPropagation(); setExpandedCards(prev => { const n = new Set(prev); if (cardExp) n.delete(task.id); else n.add(task.id); return n; }); }} className="text-xs mt-1 font-medium" style={{ color: "var(--accent)" }}>{cardExp ? "Less" : "More"}</button>}
                   <p className="text-xs mt-1" style={{ color: "var(--muted-light)" }}>{new Date(task.created_at).toLocaleTimeString()}</p>
                 </div>
               );
@@ -697,7 +696,7 @@ export default function ProjectsPage() {
                   <Bot size={28} style={{ color: "var(--accent)" }}/>
                 </div>
                 <p className="text-base font-semibold mb-1" style={{ color: "var(--foreground)" }}>Select a project</p>
-                <p className="text-sm" style={{ color: "var(--muted)" }}>Click a project to see the agent pipeline and inspect each agent's input and output.</p>
+                <p className="text-sm" style={{ color: "var(--muted)" }}>Click a project to see the agent pipeline and inspect each agent&apos;s input and output.</p>
                 <div className="mt-6 space-y-2 text-left">
                   {BUILTIN_PRESETS.map(p => {
                     const Icon = PRESET_ICONS[p.id] ?? Layers;
@@ -749,11 +748,10 @@ export default function ProjectsPage() {
                     nodes={pipeline}
                     selected={selectedAgent}
                     onSelect={role => setSelectedAgent(role)}
-                    taskStatus={selectedTask?.status ?? "pending"}
                   />
                   {/* Agent detail pane */}
                   {selectedNode ? (
-                    <AgentDetail node={selectedNode} allNodes={pipeline} />
+                    <AgentDetail node={selectedNode} />
                   ) : (
                     <div className="flex-1 flex items-center justify-center">
                       <p className="text-sm" style={{ color: "var(--muted)" }}>Click an agent in the pipeline above to inspect their input and output.</p>

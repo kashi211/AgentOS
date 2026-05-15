@@ -14,7 +14,7 @@ import {
   BUILTIN_PRESETS, loadCustomPresets, saveCustomPresets,
   loadActivePresetId, activatePreset,
   fetchPresetsFromAPI, upsertPresetToAPI, deletePresetFromAPI,
-  type Agent, type WorkflowLoop, type Workflow, type Preset,
+  type Agent, type Workflow, type Preset,
 } from "@/lib/presets";
 
 /* ─── Agent icon map ─────────────────────────────────────── */
@@ -383,7 +383,6 @@ export default function AgentsPage() {
     // Merge API presets (source of truth) into local state
     fetchPresetsFromAPI().then(remote => {
       if (!remote.length) return;
-      const localIds = new Set(local.map(p => p.id));
       const merged = [...remote, ...local.filter(p => !remote.find(r => r.id === p.id))];
       setCustomPresets(merged);
       saveCustomPresets(merged);
