@@ -949,7 +949,23 @@ export default function ProjectsPage() {
             {selectedPreset && <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: `${selectedPreset.categoryColor}15`, color: selectedPreset.categoryColor }}>{selectedPreset.agents.length} agents</span>}
           </div>
           <PresetSelector presets={allPresets} selected={selectedPresetId} onSelect={setSelectedPresetId} />
-          {selectedPreset && <p className="text-xs mt-2 leading-relaxed" style={{ color: "var(--muted)" }}><span className="font-mono" style={{ color: selectedPreset.categoryColor }}>{selectedPreset.tagline}</span>{" · "}{selectedPreset.description.split(".")[0]}.</p>}
+          {selectedPreset && (() => {
+            const cc = selectedPreset.categoryColor;
+            // Tagline: use saved tagline or build from workflow node order
+            const tagline = selectedPreset.tagline ||
+              selectedPreset.agents.map(a => a.role).join(" → ");
+            // Description: use saved description, else join agent descriptions, else role chain
+            const descs = selectedPreset.agents.map(a => a.description).filter(Boolean);
+            const desc = selectedPreset.description ||
+              (descs.length > 0 ? descs.join(" ") : selectedPreset.agents.map(a => a.role).join(" → ") + " pipeline.");
+            const firstSentence = desc.split(".")[0];
+            return (
+              <p className="text-xs mt-2 leading-relaxed" style={{ color: "var(--muted)" }}>
+                <span className="font-mono" style={{ color: cc }}>{tagline}</span>
+                {firstSentence ? <>{" · "}{firstSentence}.</> : null}
+              </p>
+            );
+          })()}
         </div>
         <div className="flex gap-2">
           <textarea className="flex-1 px-4 py-3 rounded-xl text-sm resize-none border outline-none" style={{ background: "var(--card)", borderColor: "var(--card-border)", color: "var(--foreground)", minHeight: "52px", maxHeight: "120px" }}
