@@ -11,12 +11,16 @@ from typing_extensions import TypedDict
 from agents.ceo import CEOAgent
 from agents.planner import PlannerAgent
 from agents.developer import DeveloperAgent
+from agents.worker import WorkerAgent
 from agents.qa import QAAgent
 from agents.writer import WriterAgent
 from memory.store import MemoryStore
 from db.connection import get_pool
 
 MAX_REVISIONS = 2
+
+# Agent roles that should use DeveloperAgent (code-writing tools)
+_CODE_ROLES = {"developer", "coder", "programmer", "engineer", "frontend", "backend", "fullstack"}
 
 
 def _workflow_config() -> dict:
@@ -46,9 +50,9 @@ class AgentState(TypedDict):
 async def ceo_node(state: AgentState) -> dict:
     memory = MemoryStore(state["task_id"])
     agent = CEOAgent(state["task_id"], memory)
-    response = await agent.run(
-        f"New goal received:\n\n{state['goal']}\n\nProduce the execution plan."
-    )
+    ceo_input = f"New goal received:\n\n{state['goal']}\n\nProduce the execution plan."
+    await _save_message(state["task_id"], "ceo", "agent_input", ceo_input)
+    response = await agent.run(ceo_input)
     try:
         plan_data = agent.parse_json(response)
         plan = plan_data.get("subtasks", [])
@@ -57,7 +61,7 @@ async def ceo_node(state: AgentState) -> dict:
         plan = []
         summary = state["goal"]
 
-    await _save_message(state["task_id"], "ceo", "output", response)
+    await _save_message(state["task_id"], "ceo", "agent_output", response)
     await _update_task_status(state["task_id"], "planning")
 
     return {
@@ -70,17 +74,19 @@ async def ceo_node(state: AgentState) -> dict:
 async def planner_node(state: AgentState) -> dict:
     memory = MemoryStore(state["task_id"])
     agent = PlannerAgent(state["task_id"], memory)
-    response = await agent.run(
+    planner_input = (
         f"Goal: {state['goal']}\n\nCEO plan:\n{json.dumps(state['plan'], indent=2)}\n\n"
         "Produce the detailed step-by-step execution plan."
     )
+    await _save_message(state["task_id"], "planner", "agent_input", planner_input)
+    response = await agent.run(planner_input)
     try:
         steps_data = agent.parse_json(response)
         steps = steps_data.get("steps", [])
     except Exception:
         steps = []
 
-    await _save_message(state["task_id"], "planner", "output", response)
+    await _save_message(state["task_id"], "planner", "agent_output", response)
     await _update_task_status(state["task_id"], "executing")
 
     return {
@@ -93,7 +99,6 @@ async def planner_node(state: AgentState) -> dict:
 
 async def developer_node(state: AgentState) -> dict:
     memory = MemoryStore(state["task_id"])
-    agent = DeveloperAgent(state["task_id"], memory, output_task_id=state.get("output_task_id"))
 
     steps = state["steps"]
     idx = state["current_step_idx"]
@@ -101,6 +106,17 @@ async def developer_node(state: AgentState) -> dict:
 
     if not step:
         return {"status": "reviewing", "events": []}
+
+    # Determine agent role from the planner's step definition
+    step_role = step.get("agent", "developer").lower().replace(" ", "_")
+    is_code = step_role in _CODE_ROLES
+
+    if is_code:
+        agent = DeveloperAgent(state["task_id"], memory, output_task_id=state.get("output_task_id"))
+        save_role = step_role if step_role != "developer" else "developer"
+    else:
+        agent = WorkerAgent(state["task_id"], memory, role_name=step_role)
+        save_role = step_role
 
     context = (
         f"Task: {state['goal']}\n\n"
@@ -120,15 +136,23 @@ async def developer_node(state: AgentState) -> dict:
             "If the change is missing or wrong, fix it and write the file."
         )
 
+    # Save agent input so frontend can show what was passed between agents
+    await _save_message(state["task_id"], save_role, "agent_input", context)
+
     response = await agent.run(context)
-    await _save_message(state["task_id"], "developer", "output", response)
-    await _save_subtask(state["task_id"], "developer", step["description"], "done", response)
+
+    await _save_message(state["task_id"], save_role, "agent_output", response)
+    await _save_subtask(state["task_id"], save_role, step["description"], "done", response)
+
+    # Broadcast a meaningful content preview (not just "Step N complete")
+    preview = response.replace("\n", " ").strip()
+    preview = preview[:280] + "…" if len(preview) > 280 else preview
 
     outputs = {**state["agent_outputs"], f"step_{idx}": response}
     return {
         "agent_outputs": outputs,
         "status": "reviewing",
-        "events": [{"type": "agent_output", "agent": "developer", "content": f"Step {idx + 1} complete"}],
+        "events": [{"type": "agent_output", "agent": save_role, "content": preview}],
     }
 
 
@@ -141,10 +165,10 @@ async def qa_node(state: AgentState) -> dict:
     step = steps[idx] if idx < len(steps) else {}
     dev_output = state["agent_outputs"].get(f"step_{idx}", "")
 
-    response = await agent.run(
-        f"Task: {step.get('description', state['goal'])}\n\nDeveloper output:\n{dev_output}"
-    )
-    await _save_message(state["task_id"], "qa", "output", response)
+    qa_context = f"Task: {step.get('description', state['goal'])}\n\nAgent output:\n{dev_output}"
+    await _save_message(state["task_id"], "qa", "agent_input", qa_context)
+    response = await agent.run(qa_context)
+    await _save_message(state["task_id"], "qa", "agent_output", response)
 
     try:
         review = agent.parse_json(response)
@@ -186,11 +210,13 @@ async def writer_node(state: AgentState) -> dict:
     all_output = "\n\n---\n\n".join(
         f"**{k}**:\n{v}" for k, v in state["agent_outputs"].items() if not k.startswith("qa")
     )
-    response = await agent.run(
+    writer_input = (
         f"Goal: {state['goal']}\n\nAll agent outputs:\n{all_output}\n\n"
         "Write a concise README for what was built."
     )
-    await _save_message(state["task_id"], "writer", "output", response)
+    await _save_message(state["task_id"], "writer", "agent_input", writer_input)
+    response = await agent.run(writer_input)
+    await _save_message(state["task_id"], "writer", "agent_output", response)
     await _update_task_status(state["task_id"], "done")
     await _save_task_result(state["task_id"], response)
 
