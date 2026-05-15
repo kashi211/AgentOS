@@ -10,6 +10,7 @@ async def init_db():
         dsn=settings.database_url,
         min_size=2,
         max_size=10,
+        statement_cache_size=0,  # prevents InvalidCachedStatementError after schema migrations
     )
     await _create_schema()
 
