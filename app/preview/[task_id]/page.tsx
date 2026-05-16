@@ -247,11 +247,7 @@ export default function ProjectPage() {
         <button onClick={() => { if (selectedFile) selectFile(selectedFile); setIframeKey((k) => k + 1); fetchFiles(); }} style={{ color: "#94a3b8", display: "flex", padding: 6, borderRadius: 6, border: "1px solid #1e293b", cursor: "pointer", background: "transparent" }} title="Reload">
           <RefreshCw size={14} />
         </button>
-        {hasDemo && (
-          <a href={demoSrc} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", gap: 6, padding: "0 14px", height: 34, borderRadius: 8, background: "#4f46e5", color: "#fff", fontSize: 13, fontWeight: 600, textDecoration: "none", flexShrink: 0 }}>
-            <ExternalLink size={13} /> Open App
-          </a>
-        )}
+        {/* Open App button hidden until file serving works on Railway */}
       </div>
 
       {/* Body */}
