@@ -657,7 +657,7 @@ function DeliveryPanel({ task, messages, preset, fileCount }: { task: Task; mess
               ))}
             </div>
           )}
-          {isDevPreset && <Link href={`/preview/${task.id}`} target="_blank" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: "var(--accent)" }}><ExternalLink size={11}/> Preview app</Link>}
+          {/* Preview app button hidden until file serving works on Railway */}
         </div>
       </div>
       <div className="p-5">
@@ -668,7 +668,7 @@ function DeliveryPanel({ task, messages, preset, fileCount }: { task: Task; mess
               <div className="rounded-xl px-5 py-4" style={{ background: "var(--card)", border: "1px solid var(--card-border)" }}><ExpandableContent content={deliverable.content} renderAs="markdown" thresholdChars={1200} /></div>
             </div>
           ) : isDevPreset ? (
-            <div className="text-center py-4"><Code2 size={24} className="mx-auto mb-2" style={{ color: "var(--muted-light)" }}/><p className="text-sm font-medium mb-1" style={{ color: "var(--foreground)" }}>App built</p><Link href={`/preview/${task.id}`} target="_blank" className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white mt-2" style={{ background: "var(--accent)" }}><ExternalLink size={13}/> Open preview</Link></div>
+            <div className="text-center py-4"><Code2 size={24} className="mx-auto mb-2" style={{ color: "var(--muted-light)" }}/><p className="text-sm font-medium mb-1" style={{ color: "var(--foreground)" }}>App built</p><p className="text-xs" style={{ color: "var(--muted)" }}>Preview coming soon</p></div>
           ) : <p className="text-sm text-center py-4" style={{ color: "var(--muted)" }}>No deliverable found.</p>
         ) : (
           quality ? (
