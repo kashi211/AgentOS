@@ -14,6 +14,7 @@ from routes.presets import router as presets_router
 from routes.questions import router as questions_router
 from routes.summary import router as summary_router
 from routes.auth import router as auth_router
+from routes.metrics import router as metrics_router
 
 
 @asynccontextmanager
@@ -48,6 +49,7 @@ app.include_router(edit_router, prefix="/tasks", tags=["edit"])
 app.include_router(presets_router, prefix="/presets", tags=["presets"])
 app.include_router(questions_router, prefix="/tasks", tags=["questions"])
 app.include_router(summary_router, prefix="/tasks", tags=["summary"])
+app.include_router(metrics_router)
 
 app.mount("/output", StaticFiles(directory="output"), name="output")
 

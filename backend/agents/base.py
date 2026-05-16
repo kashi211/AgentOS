@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import os
+import time
 from abc import ABC, abstractmethod
 from typing import Any
 
@@ -89,6 +91,11 @@ class BaseAgent(ABC):
         from streaming import get_stream_callback
         stream_callback = get_stream_callback(self.task_id)
 
+        # Token accumulators across all loop turns
+        _total_input = 0
+        _total_output = 0
+        start_time = time.time()
+
         # Proper agentic tool-use loop: keep going until stop_reason != "tool_use"
         first_turn = True
         while True:
@@ -108,6 +115,8 @@ class BaseAgent(ABC):
                         except Exception:
                             pass
                     response = await stream.get_final_message()
+                _total_input += getattr(response.usage, 'input_tokens', 0)
+                _total_output += getattr(response.usage, 'output_tokens', 0)
                 if "".join(text_parts_current).strip():
                     text_parts.append("".join(text_parts_current))
                 first_turn = False
@@ -119,6 +128,8 @@ class BaseAgent(ABC):
                     messages=self._conversation,
                     tools=self.tools if self.tools else anthropic.NOT_GIVEN,
                 )
+                _total_input += getattr(response.usage, 'input_tokens', 0)
+                _total_output += getattr(response.usage, 'output_tokens', 0)
                 # Accumulate any text from this turn
                 for block in response.content:
                     if block.type == "text" and block.text.strip():
@@ -145,6 +156,21 @@ class BaseAgent(ABC):
             self._conversation.append({"role": "user", "content": tool_results})
 
         result = "\n".join(text_parts)
+
+        latency_ms = int((time.time() - start_time) * 1000)
+        try:
+            from metrics.tracker import save_metric
+            asyncio.create_task(save_metric(
+                task_id=self.task_id,
+                agent_role=self.role,
+                model=self.model,
+                input_tokens=_total_input,
+                output_tokens=_total_output,
+                latency_ms=latency_ms,
+            ))
+        except Exception:
+            pass
+
         # Persist to short-term memory
         await self.memory.save_context(self.role, f"[{self.role}] {result[:500]}")
 

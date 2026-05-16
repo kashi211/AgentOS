@@ -109,4 +109,19 @@ DO $$ BEGIN
 END $$;
 
 CREATE INDEX IF NOT EXISTS idx_tasks_user_id ON tasks(user_id);
+
+CREATE TABLE IF NOT EXISTS task_metrics (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    task_id     UUID REFERENCES tasks(id) ON DELETE CASCADE,
+    agent_role  VARCHAR(100) NOT NULL,
+    preset_id   TEXT,
+    model       VARCHAR(100),
+    input_tokens  INT DEFAULT 0,
+    output_tokens INT DEFAULT 0,
+    cost_usd    FLOAT DEFAULT 0,
+    latency_ms  INT DEFAULT 0,
+    created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_task_metrics_task_id ON task_metrics(task_id);
+CREATE INDEX IF NOT EXISTS idx_task_metrics_preset_id ON task_metrics(preset_id);
 """

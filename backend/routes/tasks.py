@@ -304,6 +304,26 @@ async def _run_graph(task_id: str, goal: str, output_task_id: str | None = None,
             for node_name, state_update in chunk.items():
                 for event in state_update.get("events", []):
                     await broadcast(task_id, {**event, "node": node_name})
+
+        # Run Braintrust eval on final output
+        try:
+            pool = get_pool()
+            async with pool.acquire() as conn:
+                task_row = await conn.fetchrow("SELECT goal, preset_id, result FROM tasks WHERE id=$1", uuid.UUID(task_id))
+                cost_row = await conn.fetchrow("SELECT SUM(cost_usd) as total_cost, SUM(latency_ms) as total_latency FROM task_metrics WHERE task_id=$1 AND agent_role!='__eval__'", uuid.UUID(task_id))
+            if task_row and task_row["result"]:
+                from metrics.braintrust_client import log_task_completion
+                asyncio.create_task(log_task_completion(
+                    task_id=task_id,
+                    goal=task_row["goal"],
+                    final_output=task_row["result"],
+                    preset_id=task_row["preset_id"],
+                    total_cost_usd=float(cost_row["total_cost"] or 0),
+                    total_latency_ms=int(cost_row["total_latency"] or 0),
+                ))
+        except Exception as e:
+            print(f"[eval] trigger error: {e}")
+
     except asyncio.CancelledError:
         # Task was cancelled — status already updated in cancel_task endpoint
         pass

@@ -30,3 +30,4 @@ boto3>=1.35.0
 python-dotenv>=1.0.0
 httpx>=0.28.0
 tenacity>=9.0.0
+braintrust>=0.0.170

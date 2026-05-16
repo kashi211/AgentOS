@@ -10,6 +10,7 @@ import {
   Map,
   Bot,
   ListTodo,
+  BarChart3,
   ChevronRight,
   Menu,
   X,
@@ -19,6 +20,7 @@ const nav = [
   { href: "/", label: "Home", icon: LayoutDashboard },
   { href: "/agents", label: "Agents", icon: Bot },
   { href: "/projects", label: "Projects", icon: ListTodo },
+  { href: "/observability", label: "Observability", icon: BarChart3 },
 ];
 
 const secondaryNav = [
