@@ -16,7 +16,11 @@ export async function GET(
       return new NextResponse("Not found", { status: 404 });
     }
     const body = await res.text();
-    const contentType = res.headers.get("content-type") ?? "text/plain";
+    // Always force text/html for .html files regardless of upstream content-type
+    const isHtml = filePath.endsWith(".html");
+    const contentType = isHtml
+      ? "text/html; charset=utf-8"
+      : (res.headers.get("content-type") ?? "text/plain");
     return new NextResponse(body, {
       status: 200,
       headers: { "content-type": contentType },
