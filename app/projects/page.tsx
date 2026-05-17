@@ -6,7 +6,8 @@ import {
   ExternalLink, Code2, Search, TrendingUp, Scale, Megaphone,
   BookOpen, Layers, Bot, BarChart3, ShieldCheck, FlaskConical,
   ScrollText, Lightbulb, ArrowRight, CircleDot, Terminal,
-  ArrowDownRight, ChevronRight, RotateCcw, Inbox,
+  ArrowDownRight, ChevronRight, RotateCcw, Inbox, Trash2,
+  PanelLeftClose, PanelLeftOpen,
 } from "lucide-react";
 import Link from "next/link";
 import { BUILTIN_PRESETS, loadCustomPresets, saveCustomPresets, loadActivePresetId, fetchPresetsFromAPI, type Preset } from "@/lib/presets";
@@ -735,6 +736,8 @@ export default function ProjectsPage() {
   const [streamingContent, setStreamingContent] = useState<Record<string, string>>({});
   const [cancelling, setCancelling] = useState(false);
   const [taskFileCount, setTaskFileCount] = useState<number>(0);
+  const [taskListCollapsed, setTaskListCollapsed] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const autoFocusedAgentRef = useRef<string | null>(null);
 
@@ -781,6 +784,23 @@ export default function ProjectsPage() {
       setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: "cancelled" } : t));
     } finally {
       setCancelling(false);
+    }
+  };
+
+  const deleteTask = async (taskId: string) => {
+    setDeletingId(taskId);
+    try {
+      await fetch(`${API}/tasks/${taskId}`, { method: "DELETE" });
+      setTasks(prev => prev.filter(t => t.id !== taskId));
+      if (selectedId === taskId) {
+        setSelectedId(null);
+        setMessages([]);
+        setLiveEvents([]);
+        setStreamingContent({});
+        wsRef.current?.close();
+      }
+    } catch {} finally {
+      setDeletingId(null);
     }
   };
 
@@ -1020,41 +1040,73 @@ export default function ProjectsPage() {
 
       {/* ── Body ── */}
       <div className="flex flex-1">
-        {/* Task list — sticky sidebar that scrolls independently */}
-        <div className="w-64 shrink-0 border-r flex flex-col sticky top-0" style={{ borderColor: "var(--card-border)", background: "#fafafa", height: "100vh", maxHeight: "100vh" }}>
-          <div className="p-3 flex items-center justify-between border-b shrink-0" style={{ borderColor: "var(--card-border)" }}>
-            <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--muted-light)" }}>{tasks.length} projects</span>
-            <button onClick={fetchTasks} className="p-1 rounded" style={{ color: "var(--muted)" }}><RefreshCw size={13}/></button>
-          </div>
-          <div className="flex-1 overflow-y-auto">
-            {tasks.length === 0 ? (
-              <div className="p-6 text-center"><Lightbulb size={24} className="mx-auto mb-2" style={{ color: "var(--muted-light)" }}/><p className="text-sm" style={{ color: "var(--muted)" }}>No projects yet.</p></div>
-            ) : tasks.map(task => {
+        {/* Task list — collapsible sticky sidebar */}
+        {taskListCollapsed ? (
+          /* Collapsed: icon-only strip */
+          <div className="shrink-0 border-r flex flex-col sticky top-0 items-center py-2 gap-1" style={{ borderColor: "var(--card-border)", background: "#fafafa", height: "100vh", maxHeight: "100vh", width: 44 }}>
+            <button onClick={() => setTaskListCollapsed(false)} title="Expand project list" className="w-8 h-8 flex items-center justify-center rounded-lg mb-1" style={{ color: "var(--muted)" }}>
+              <PanelLeftOpen size={16}/>
+            </button>
+            {tasks.map(task => {
               const cfg = STATUS_CFG[task.status] ?? STATUS_CFG.pending;
               const active = task.id === selectedId;
-              const tPreset = allPresets.find(p => p.id === task.preset_id);
-              const PIcon = tPreset ? (PRESET_ICONS[tPreset.id] ?? Layers) : FlaskConical;
-              const isLong = task.goal.length > 70;
-              const cardExp = expandedCards.has(task.id);
               return (
-                <div key={task.id} className="w-full text-left px-4 py-3 border-b" style={{ borderColor: "var(--card-border)", background: active ? "var(--accent-light)" : "transparent", borderLeft: active ? "3px solid var(--accent)" : "3px solid transparent" }}>
-                  <div className="cursor-pointer" onClick={() => selectTask(task.id)}>
-                    <div className="flex items-center gap-2 mb-1">
-                      {isActive(task.status) ? <Loader2 size={10} className="animate-spin" style={{ color: cfg.color }}/> : task.status === "done" ? <CheckCircle2 size={10} style={{ color: cfg.color }}/> : task.status === "failed" ? <XCircle size={10} style={{ color: cfg.color }}/> : <Clock size={10} style={{ color: cfg.color }}/>}
-                      <span className="text-xs font-semibold" style={{ color: cfg.color }}>{cfg.label}</span>
-                      {tPreset && <span className="ml-auto flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded-full" style={{ background: `${tPreset.categoryColor}12`, color: tPreset.categoryColor }}><PIcon size={8}/><span style={{ fontSize: 9 }}>{tPreset.name.split(" ")[0]}</span></span>}
-                    </div>
-                    <p className="text-xs leading-snug" style={{ color: active ? "var(--accent)" : "var(--foreground)" }}>
-                      {isLong && !cardExp ? task.goal.slice(0, 70) + "…" : task.goal}
-                    </p>
-                  </div>
-                  {isLong && <button onClick={e => { e.stopPropagation(); setExpandedCards(prev => { const n = new Set(prev); if (cardExp) n.delete(task.id); else n.add(task.id); return n; }); }} className="text-xs mt-1 font-medium" style={{ color: "var(--accent)" }}>{cardExp ? "Less" : "More"}</button>}
-                  <p className="text-xs mt-1" style={{ color: "var(--muted-light)" }}>{new Date(task.created_at).toLocaleTimeString()}</p>
-                </div>
+                <button key={task.id} onClick={() => selectTask(task.id)} title={task.goal} className="w-8 h-8 flex items-center justify-center rounded-lg transition-all" style={{ background: active ? "var(--accent-light)" : "transparent" }}>
+                  {isActive(task.status) ? <Loader2 size={11} className="animate-spin" style={{ color: cfg.color }}/> : task.status === "done" ? <CheckCircle2 size={11} style={{ color: cfg.color }}/> : task.status === "failed" ? <XCircle size={11} style={{ color: cfg.color }}/> : <Clock size={11} style={{ color: cfg.color }}/>}
+                </button>
               );
             })}
           </div>
-        </div>
+        ) : (
+          /* Expanded: full w-64 sidebar */
+          <div className="w-64 shrink-0 border-r flex flex-col sticky top-0" style={{ borderColor: "var(--card-border)", background: "#fafafa", height: "100vh", maxHeight: "100vh" }}>
+            <div className="p-3 flex items-center justify-between border-b shrink-0" style={{ borderColor: "var(--card-border)" }}>
+              <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--muted-light)" }}>{tasks.length} projects</span>
+              <div className="flex items-center gap-1">
+                <button onClick={fetchTasks} className="p-1 rounded" style={{ color: "var(--muted)" }} title="Refresh"><RefreshCw size={13}/></button>
+                <button onClick={() => setTaskListCollapsed(true)} className="p-1 rounded" style={{ color: "var(--muted)" }} title="Collapse sidebar"><PanelLeftClose size={14}/></button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              {tasks.length === 0 ? (
+                <div className="p-6 text-center"><Lightbulb size={24} className="mx-auto mb-2" style={{ color: "var(--muted-light)" }}/><p className="text-sm" style={{ color: "var(--muted)" }}>No projects yet.</p></div>
+              ) : tasks.map(task => {
+                const cfg = STATUS_CFG[task.status] ?? STATUS_CFG.pending;
+                const active = task.id === selectedId;
+                const tPreset = allPresets.find(p => p.id === task.preset_id);
+                const PIcon = tPreset ? (PRESET_ICONS[tPreset.id] ?? Layers) : FlaskConical;
+                const isLong = task.goal.length > 70;
+                const cardExp = expandedCards.has(task.id);
+                const isDeleting = deletingId === task.id;
+                return (
+                  <div key={task.id} className="group w-full text-left px-4 py-3 border-b" style={{ borderColor: "var(--card-border)", background: active ? "var(--accent-light)" : "transparent", borderLeft: active ? "3px solid var(--accent)" : "3px solid transparent" }}>
+                    <div className="cursor-pointer" onClick={() => selectTask(task.id)}>
+                      <div className="flex items-center gap-2 mb-1">
+                        {isActive(task.status) ? <Loader2 size={10} className="animate-spin" style={{ color: cfg.color }}/> : task.status === "done" ? <CheckCircle2 size={10} style={{ color: cfg.color }}/> : task.status === "failed" ? <XCircle size={10} style={{ color: cfg.color }}/> : <Clock size={10} style={{ color: cfg.color }}/>}
+                        <span className="text-xs font-semibold" style={{ color: cfg.color }}>{cfg.label}</span>
+                        {tPreset && <span className="flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded-full" style={{ background: `${tPreset.categoryColor}12`, color: tPreset.categoryColor }}><PIcon size={8}/><span style={{ fontSize: 9 }}>{tPreset.name.split(" ")[0]}</span></span>}
+                        <button
+                          onClick={e => { e.stopPropagation(); deleteTask(task.id); }}
+                          disabled={isDeleting}
+                          title="Delete project"
+                          className="ml-auto p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                          style={{ color: "#dc2626" }}
+                        >
+                          {isDeleting ? <Loader2 size={11} className="animate-spin"/> : <Trash2 size={11}/>}
+                        </button>
+                      </div>
+                      <p className="text-xs leading-snug" style={{ color: active ? "var(--accent)" : "var(--foreground)" }}>
+                        {isLong && !cardExp ? task.goal.slice(0, 70) + "…" : task.goal}
+                      </p>
+                    </div>
+                    {isLong && <button onClick={e => { e.stopPropagation(); setExpandedCards(prev => { const n = new Set(prev); if (cardExp) n.delete(task.id); else n.add(task.id); return n; }); }} className="text-xs mt-1 font-medium" style={{ color: "var(--accent)" }}>{cardExp ? "Less" : "More"}</button>}
+                    <p className="text-xs mt-1" style={{ color: "var(--muted-light)" }}>{new Date(task.created_at).toLocaleTimeString()}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Main panel */}
         <div className="flex-1 flex flex-col min-w-0">

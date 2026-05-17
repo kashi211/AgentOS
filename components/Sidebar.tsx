@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -12,6 +12,7 @@ import {
   ListTodo,
   BarChart3,
   ChevronRight,
+  ChevronLeft,
   Menu,
   X,
 } from "lucide-react";
@@ -28,8 +29,81 @@ const secondaryNav = [
   { href: "/plan", label: "Dev Plan", icon: Map },
 ];
 
-function SidebarContent({ onClose }: { onClose?: () => void }) {
+function SidebarContent({ onClose, collapsed, onToggleCollapse }: {
+  onClose?: () => void;
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
+}) {
   const pathname = usePathname();
+
+  if (collapsed) {
+    return (
+      <aside
+        style={{
+          background: "#ffffff",
+          borderRight: "1px solid var(--card-border)",
+          width: "56px",
+          minWidth: "56px",
+        }}
+        className="h-full flex flex-col items-center py-3 gap-1"
+      >
+        {/* Logo icon */}
+        <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0 mb-2" style={{ background: "#0a0a0f" }}>
+          <Image src="/agentos.png" alt="AgentOS" width={32} height={32} className="w-full h-full object-cover" />
+        </div>
+
+        {/* Nav icons */}
+        {nav.map(({ href, label, icon: Icon }) => {
+          const active = pathname === href;
+          return (
+            <Link
+              key={href}
+              href={href}
+              title={label}
+              className="w-9 h-9 flex items-center justify-center rounded-lg transition-all"
+              style={{
+                background: active ? "var(--accent-light)" : "transparent",
+                color: active ? "var(--accent)" : "var(--muted)",
+              }}
+            >
+              <Icon size={17} />
+            </Link>
+          );
+        })}
+
+        <div className="flex-1" />
+
+        {/* Secondary nav icons */}
+        {secondaryNav.map(({ href, label, icon: Icon }) => {
+          const active = pathname === href;
+          return (
+            <Link
+              key={href}
+              href={href}
+              title={label}
+              className="w-9 h-9 flex items-center justify-center rounded-lg transition-all"
+              style={{
+                color: active ? "var(--accent)" : "var(--muted-light)",
+                background: active ? "var(--accent-light)" : "transparent",
+              }}
+            >
+              <Icon size={15} />
+            </Link>
+          );
+        })}
+
+        {/* Expand button */}
+        <button
+          onClick={onToggleCollapse}
+          title="Expand sidebar"
+          className="w-9 h-9 flex items-center justify-center rounded-lg mt-1"
+          style={{ color: "var(--muted-light)" }}
+        >
+          <ChevronRight size={16} />
+        </button>
+      </aside>
+    );
+  }
 
   return (
     <aside
@@ -52,11 +126,18 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
             <div className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>Multi-Agent AI</div>
           </div>
         </div>
-        {onClose && (
-          <button onClick={onClose} className="p-1 rounded-md" style={{ color: "var(--muted)" }}>
-            <X size={18} />
-          </button>
-        )}
+        <div className="flex items-center gap-1">
+          {onToggleCollapse && (
+            <button onClick={onToggleCollapse} title="Collapse sidebar" className="p-1 rounded-md" style={{ color: "var(--muted)" }}>
+              <ChevronLeft size={16} />
+            </button>
+          )}
+          {onClose && (
+            <button onClick={onClose} className="p-1 rounded-md" style={{ color: "var(--muted)" }}>
+              <X size={18} />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Primary Nav */}
@@ -110,15 +191,10 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
 
       {/* Footer */}
       <div className="p-4 border-t space-y-2" style={{ borderColor: "var(--card-border)" }}>
-        <div
-          className="rounded-lg p-3"
-          style={{ background: "#f0fdf4", border: "1px solid #bbf7d0" }}
-        >
+        <div className="rounded-lg p-3" style={{ background: "#f0fdf4", border: "1px solid #bbf7d0" }}>
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full pulse-dot" style={{ background: "var(--success)" }} />
-            <span className="text-xs font-semibold" style={{ color: "var(--success)" }}>
-              Alpha Build
-            </span>
+            <span className="text-xs font-semibold" style={{ color: "var(--success)" }}>Alpha Build</span>
           </div>
         </div>
       </div>
@@ -128,6 +204,19 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
 
 export default function Sidebar() {
   const [open, setOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
+    const stored = localStorage.getItem("sidebar-collapsed");
+    if (stored === "true") setCollapsed(true);
+  }, []);
+
+  const toggleCollapse = () => {
+    setCollapsed(c => {
+      localStorage.setItem("sidebar-collapsed", String(!c));
+      return !c;
+    });
+  };
 
   return (
     <>
@@ -136,11 +225,7 @@ export default function Sidebar() {
         className="lg:hidden fixed top-0 left-0 right-0 z-40 flex items-center gap-3 px-4 h-14 border-b"
         style={{ background: "#ffffff", borderColor: "var(--card-border)" }}
       >
-        <button
-          onClick={() => setOpen(true)}
-          className="p-1.5 rounded-lg"
-          style={{ color: "var(--foreground)" }}
-        >
+        <button onClick={() => setOpen(true)} className="p-1.5 rounded-lg" style={{ color: "var(--foreground)" }}>
           <Menu size={20} />
         </button>
         <div className="flex items-center gap-2">
@@ -151,18 +236,14 @@ export default function Sidebar() {
         </div>
       </div>
 
-      {/* Desktop sidebar — always visible */}
+      {/* Desktop sidebar */}
       <div className="hidden lg:flex h-full">
-        <SidebarContent />
+        <SidebarContent collapsed={collapsed} onToggleCollapse={toggleCollapse} />
       </div>
 
       {/* Mobile drawer backdrop */}
       {open && (
-        <div
-          className="fixed inset-0 z-50 lg:hidden"
-          style={{ background: "rgba(0,0,0,0.35)" }}
-          onClick={() => setOpen(false)}
-        />
+        <div className="fixed inset-0 z-50 lg:hidden" style={{ background: "rgba(0,0,0,0.35)" }} onClick={() => setOpen(false)} />
       )}
 
       {/* Mobile drawer */}

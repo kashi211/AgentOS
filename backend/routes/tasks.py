@@ -112,6 +112,23 @@ async def cancel_task(task_id: str):
     return {"cancelled": True}
 
 
+@router.delete("/{task_id}")
+async def delete_task(task_id: str):
+    # Cancel if running
+    task = _running_tasks.pop(task_id, None)
+    if task and not task.done():
+        task.cancel()
+    from streaming import unregister_stream
+    unregister_stream(task_id)
+
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        result = await conn.execute("DELETE FROM tasks WHERE id=$1", uuid.UUID(task_id))
+    if result == "DELETE 0":
+        raise HTTPException(status_code=404, detail="Task not found")
+    return {"deleted": True}
+
+
 @router.get("/{task_id}")
 async def get_task(task_id: str, authorization: str = Header(None)):
     pool = get_pool()
