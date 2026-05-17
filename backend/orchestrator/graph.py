@@ -17,7 +17,7 @@ from agents.writer import WriterAgent
 from memory.store import MemoryStore
 from db.connection import get_pool
 
-MAX_REVISIONS = 2
+MAX_REVISIONS = 3
 
 # Agent roles that should use DeveloperAgent (code-writing tools)
 _CODE_ROLES = {"developer", "coder", "programmer", "engineer", "frontend", "backend", "fullstack"}
@@ -128,12 +128,14 @@ async def developer_node(state: AgentState) -> dict:
 
     if state["revision_count"] > 0:
         context += (
-            f"\n\nQA feedback (revision {state['revision_count']}):\n"
+            f"\n\n⚠️ REVISION {state['revision_count']} — QA read your code and found issues:\n"
             f"{state['agent_outputs'].get('qa_feedback', '')}\n\n"
-            "IMPORTANT: your previous attempt may have already modified the files on disk. "
-            "Use read_file to check the current state first. "
-            "If the requested change is already present, confirm that in your summary and PASS — do not re-apply changes that are already there. "
-            "If the change is missing or wrong, fix it and write the file."
+            "Instructions:\n"
+            "1. Call read_file on the file(s) mentioned in the QA feedback to see the current state.\n"
+            "2. Fix the specific issues QA identified — do not rewrite everything, just the broken parts.\n"
+            "3. Call write_file with the corrected version.\n"
+            "4. Call list_files to confirm the file saved.\n"
+            "5. In your Summary, describe exactly what you changed to address each QA issue."
         )
 
     # Save agent input so frontend can show what was passed between agents
@@ -158,14 +160,20 @@ async def developer_node(state: AgentState) -> dict:
 
 async def qa_node(state: AgentState) -> dict:
     memory = MemoryStore(state["task_id"])
-    agent = QAAgent(state["task_id"], memory)
+    # Pass output_task_id so QA reads files from the same location developer wrote to
+    agent = QAAgent(state["task_id"], memory, output_task_id=state.get("output_task_id"))
 
     steps = state["steps"]
     idx = state["current_step_idx"]
     step = steps[idx] if idx < len(steps) else {}
     dev_output = state["agent_outputs"].get(f"step_{idx}", "")
 
-    qa_context = f"Task: {step.get('description', state['goal'])}\n\nAgent output:\n{dev_output}"
+    qa_context = (
+        f"Original goal: {state['goal']}\n\n"
+        f"Step being verified: {step.get('description', state['goal'])}\n\n"
+        f"Developer's summary:\n{dev_output}\n\n"
+        "Now use list_files and read_file to inspect the actual code, then return your JSON verdict."
+    )
     await _save_message(state["task_id"], "qa", "agent_input", qa_context)
     response = await agent.run(qa_context)
     await _save_message(state["task_id"], "qa", "agent_output", response)
