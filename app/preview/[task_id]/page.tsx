@@ -125,15 +125,9 @@ export default function ProjectPage() {
     try {
       const res = await fetch(`${API}/tasks/${task_id}/files/${path}`);
       if (res.ok) {
-        let content = await res.text();
+        const content = await res.text();
         setEditedContent(content);
         savedContentRef.current = content;
-        if (path.endsWith(".html")) {
-          const base = `<base href="${API}/output/${task_id}/">`;
-          content = content.match(/<head/i)
-            ? content.replace(/<head([^>]*)>/i, `<head$1>${base}`)
-            : base + content;
-        }
         setFileContent(content);
       }
     } finally {
@@ -228,9 +222,8 @@ export default function ProjectPage() {
   };
 
   const hasDemo = selectedFile?.endsWith(".html") ?? false;
-  const demoSrc = `${API}/output/${task_id}/${selectedFile}`;
-  // srcdoc embeds HTML directly — avoids all cross-origin iframe restrictions
-  const iframeSrcdoc = hasDemo && fileContent ? fileContent : undefined;
+  // Use same-origin proxy so the iframe is interactive (no cross-origin restrictions)
+  const demoSrc = hasDemo ? `/api/preview/${task_id}/${selectedFile}` : undefined;
 
   return (
     <div style={{ height: "100dvh", display: "flex", flexDirection: "column", background: "#0f172a", overflow: "hidden" }}>
@@ -303,9 +296,8 @@ export default function ProjectPage() {
           ) : mode === "demo" && hasDemo ? (
             <iframe
               key={`${iframeKey}-${selectedFile}`}
-              srcDoc={iframeSrcdoc}
+              src={demoSrc}
               style={{ flex: 1, width: "100%", border: "none", background: "#fff" }}
-              sandbox="allow-scripts allow-forms allow-modals allow-popups"
               title="App Demo"
             />
           ) : (
