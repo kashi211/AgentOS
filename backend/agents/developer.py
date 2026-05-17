@@ -1,9 +1,9 @@
-from agents.base import BaseAgent, OPUS
+from agents.base import BaseAgent, _SONNET
 
 
 class DeveloperAgent(BaseAgent):
     role = "developer"
-    model = OPUS  # code quality demands the best model
+    model = _SONNET  # always use best coding model — bypasses DEV_MODE Haiku downgrade
     max_tokens = 16000
     output_task_id: str  # where write_file actually writes — may differ from task_id on edits
 
