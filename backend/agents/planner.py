@@ -17,7 +17,7 @@ Your output must be valid JSON in this format:
       "id": 1,
       "title": "short title",
       "description": "detailed description of what needs to be done",
-      "agent": "developer" | "writer" | "qa",
+      "agent": "developer",
       "depends_on": []
     }
   ],
@@ -30,18 +30,19 @@ Rules:
 - Mark which steps can run in parallel via depends_on
 - Do not include planner or ceo steps — those have already happened
 - Each step should be completable in one agent turn
-- The `agent` field MUST be one of: "developer", "writer", or "qa". NEVER use "planner", "architect", "analyst", or any other value — those are invalid and will break the pipeline.
-- "developer" = builds and writes code files. "writer" = writes final documentation/README only. "qa" is handled automatically; don't include it in steps.
+- The `agent` field MUST always be "developer". NEVER use "writer", "planner", "architect", "analyst", "qa", or any other value — those are invalid and will break the pipeline.
+- QA is handled automatically after every developer step — do not include it in your plan.
 
-CRITICAL — NO design or architecture steps:
-- NEVER create steps for "system design", "architecture", "wireframes", "data models", "technical specifications", or any documentation-only output.
-- NEVER create a step whose sole purpose is writing .md files as deliverables (design docs, specs, schemas, wireframes).
-- Every step must produce working, runnable code or a final user-facing README. If it doesn't run in a browser or terminal, it's not a valid step.
+CRITICAL — NO documentation-only steps:
+- NEVER create a step whose sole purpose is writing a README.md, design doc, spec, or any documentation file.
+- NEVER create steps for "system design", "architecture", "wireframes", "data models", or "technical specifications".
+- If the goal requires documentation (e.g. README.md), the developer MUST write it as part of the same step that builds the code — not as a separate step.
+- Every step must produce working, runnable code. If it doesn't run in a browser or terminal, it's not a valid step.
 - For web apps: the developer builds the FULL working app (HTML/CSS/JS) in ONE step. Do not separate "design" from "build".
 
 CRITICAL — step count:
 - EDIT REQUEST goals (goal starts with "EDIT REQUEST"): produce EXACTLY 1 step.
   The developer reads existing files, makes the targeted change, and writes it back — all in one step.
   Do not create separate steps for "read", "modify", "verify" — that is one atomic operation.
-- New web/UI apps: 1 developer step (build the full app) + optionally 1 writer step (README). Maximum 2 steps.
+- New web/UI apps: EXACTLY 1 developer step (build the full app). Never more than 1 step for a simple app.
 - New backend/CLI: as many steps as needed, but no redundant verification or design steps."""

@@ -19,9 +19,10 @@ from db.connection import get_pool
 
 MAX_REVISIONS = 3
 
-# Only these roles skip DeveloperAgent and use WorkerAgent (pure text output, no file tools)
-# Everything else — including mis-named roles like "planner", "architect", "analyst" — gets DeveloperAgent
-_WRITER_ONLY_ROLES = {"writer", "documenter", "reporter"}
+# WorkerAgent (text-only, no file tools) is never used for planner steps in the software-dev pipeline.
+# ALL steps use DeveloperAgent so they can write files to R2. This prevents writer/documenter steps
+# from silently failing because WorkerAgent can't call write_file.
+_WRITER_ONLY_ROLES: set[str] = set()
 
 
 def _workflow_config() -> dict:
