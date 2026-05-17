@@ -19,8 +19,9 @@ from db.connection import get_pool
 
 MAX_REVISIONS = 3
 
-# Agent roles that should use DeveloperAgent (code-writing tools)
-_CODE_ROLES = {"developer", "coder", "programmer", "engineer", "frontend", "backend", "fullstack"}
+# Only these roles skip DeveloperAgent and use WorkerAgent (pure text output, no file tools)
+# Everything else — including mis-named roles like "planner", "architect", "analyst" — gets DeveloperAgent
+_WRITER_ONLY_ROLES = {"writer", "documenter", "reporter"}
 
 
 def _workflow_config() -> dict:
@@ -109,11 +110,14 @@ async def developer_node(state: AgentState) -> dict:
 
     # Determine agent role from the planner's step definition
     step_role = step.get("agent", "developer").lower().replace(" ", "_")
-    is_code = step_role in _CODE_ROLES
+    # Only pure writing/documentation steps skip DeveloperAgent.
+    # Everything else (including mis-named roles like "planner", "architect") gets DeveloperAgent
+    # so it has file-writing tools.
+    is_writer_only = step_role in _WRITER_ONLY_ROLES
 
-    if is_code:
+    if not is_writer_only:
         agent = DeveloperAgent(state["task_id"], memory, output_task_id=state.get("output_task_id"))
-        save_role = step_role if step_role != "developer" else "developer"
+        save_role = "developer" if step_role in {"developer", "coder", "programmer", "engineer", "frontend", "backend", "fullstack"} else step_role
     else:
         agent = WorkerAgent(state["task_id"], memory, role_name=step_role)
         save_role = step_role
@@ -178,6 +182,7 @@ async def qa_node(state: AgentState) -> dict:
     response = await agent.run(qa_context)
     await _save_message(state["task_id"], "qa", "agent_output", response)
 
+    review: dict = {}
     try:
         review = agent.parse_json(response)
         passed = review.get("passed", False)

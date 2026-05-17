@@ -177,10 +177,15 @@ async def list_task_files(task_id: str):
 
 @router.get("/{task_id}/files/{file_path:path}")
 async def get_task_file(task_id: str, file_path: str):
+    import mimetypes
     from storage.r2 import read_file
+    from starlette.responses import HTMLResponse
     content = read_file(task_id, file_path)
     if not content:
         raise HTTPException(404, "File not found")
+    mime, _ = mimetypes.guess_type(file_path)
+    if mime == "text/html":
+        return HTMLResponse(content)
     return PlainTextResponse(content)
 
 
