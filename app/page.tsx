@@ -1,8 +1,6 @@
 import Link from "next/link";
 import {
   ArrowRight,
-  Map,
-  Zap,
   Brain,
   Network,
   ShieldCheck,
@@ -46,18 +44,6 @@ export default function Home() {
       {/* Hero */}
       <section className="relative px-4 sm:px-8 lg:px-10 pt-8 sm:pt-16 lg:pt-20 pb-16">
         <div className="relative max-w-4xl">
-          <div
-            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium mb-6"
-            style={{
-              background: "var(--accent-light)",
-              border: "1px solid rgba(79,70,229,0.2)",
-              color: "var(--accent)",
-            }}
-          >
-            <Zap size={12} />
-            Portfolio Project · Claude + FastAPI + Next.js
-          </div>
-
           <h1 className="text-5xl font-bold leading-tight mb-5">
             <span style={{ color: "var(--foreground)" }}>Build your team of</span>
             <br />
@@ -72,15 +58,15 @@ export default function Home() {
 
           <div className="flex items-center gap-4">
             <Link
-              href="/architecture"
+              href="/projects"
               className="inline-flex items-center gap-2 px-5 py-3 rounded-lg text-sm font-semibold text-white transition-all"
               style={{ background: "var(--accent)", boxShadow: "0 2px 8px rgba(79,70,229,0.25)" }}
             >
-              View Architecture
+              Start a Project
               <ArrowRight size={16} />
             </Link>
             <Link
-              href="/plan"
+              href="/architecture"
               className="inline-flex items-center gap-2 px-5 py-3 rounded-lg text-sm font-semibold transition-all"
               style={{
                 background: "var(--card)",
@@ -89,8 +75,7 @@ export default function Home() {
                 boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
               }}
             >
-              <Map size={16} />
-              Dev Roadmap
+              View Architecture
             </Link>
           </div>
         </div>

@@ -7,7 +7,6 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   GitBranch,
-  Map,
   Bot,
   ListTodo,
   BarChart3,
@@ -21,12 +20,11 @@ const nav = [
   { href: "/", label: "Home", icon: LayoutDashboard },
   { href: "/agents", label: "Agents", icon: Bot },
   { href: "/projects", label: "Projects", icon: ListTodo },
-  { href: "/observability", label: "Observability", icon: BarChart3 },
 ];
 
 const secondaryNav = [
   { href: "/architecture", label: "Architecture", icon: GitBranch },
-  { href: "/plan", label: "Dev Plan", icon: Map },
+  { href: "/observability", label: "Observability", icon: BarChart3 },
 ];
 
 function SidebarContent({ onClose, collapsed, onToggleCollapse }: {
@@ -189,15 +187,6 @@ function SidebarContent({ onClose, collapsed, onToggleCollapse }: {
         })}
       </div>
 
-      {/* Footer */}
-      <div className="p-4 border-t space-y-2" style={{ borderColor: "var(--card-border)" }}>
-        <div className="rounded-lg p-3" style={{ background: "#f0fdf4", border: "1px solid #bbf7d0" }}>
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full pulse-dot" style={{ background: "var(--success)" }} />
-            <span className="text-xs font-semibold" style={{ color: "var(--success)" }}>Alpha Build</span>
-          </div>
-        </div>
-      </div>
     </aside>
   );
 }
