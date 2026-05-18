@@ -144,7 +144,6 @@ function RefinementModal({
                           boxShadow: selected ? `0 2px 8px ${accentColor}40` : "none",
                         }}
                       >
-                        <span>{opt.emoji}</span>
                         {opt.label}
                       </button>
                     );

@@ -5,14 +5,19 @@ import {
   Network,
   ShieldCheck,
   Code2,
+  Crown,
+  Map,
+  Bug,
+  PenLine,
+  type LucideIcon,
 } from "lucide-react";
 
-const agents = [
-  { role: "CEO", icon: "👔", color: "#4f46e5", desc: "Strategy & delegation" },
-  { role: "Planner", icon: "🗺️", color: "#7c3aed", desc: "Task decomposition" },
-  { role: "Developer", icon: "💻", color: "#0284c7", desc: "Code generation" },
-  { role: "QA", icon: "🔍", color: "#059669", desc: "Review & validation" },
-  { role: "Writer", icon: "✍️", color: "#d97706", desc: "Docs & reports" },
+const agents: { role: string; icon: LucideIcon; color: string; desc: string }[] = [
+  { role: "CEO",       icon: Crown,   color: "#4f46e5", desc: "Strategy & delegation" },
+  { role: "Planner",   icon: Map,     color: "#7c3aed", desc: "Task decomposition" },
+  { role: "Developer", icon: Code2,   color: "#0284c7", desc: "Code generation" },
+  { role: "QA",        icon: Bug,     color: "#059669", desc: "Review & validation" },
+  { role: "Writer",    icon: PenLine, color: "#d97706", desc: "Docs & reports" },
 ];
 
 const features = [
@@ -94,10 +99,10 @@ export default function Home() {
                 className="card card-hover flex items-center gap-3 px-4 py-3"
               >
                 <div
-                  className="w-9 h-9 rounded-lg flex items-center justify-center text-lg"
+                  className="w-9 h-9 rounded-lg flex items-center justify-center"
                   style={{ background: `${a.color}12`, border: `1px solid ${a.color}30` }}
                 >
-                  {a.icon}
+                  <a.icon size={16} style={{ color: a.color }} />
                 </div>
                 <div>
                   <div className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{a.role}</div>

@@ -22,7 +22,7 @@ class QuestionsRequest(BaseModel):
 
 class QuestionOption(BaseModel):
     label: str
-    emoji: str
+    emoji: str = ""   # kept for backwards-compat; no longer shown in UI
     value: str
 
 
@@ -53,7 +53,6 @@ Instead focus questions on:
 Rules:
 - Questions must be directly relevant to the specific task described — not generic
 - Each question has exactly 4 options (short labels, 1-4 words max)
-- Each option gets a single relevant emoji
 - Return ONLY valid JSON, no prose
 
 Output format:
@@ -63,10 +62,10 @@ Output format:
       "id": "q1",
       "question": "Short question?",
       "options": [
-        {"label": "Option A", "emoji": "🔥", "value": "option_a_context"},
-        {"label": "Option B", "emoji": "✅", "value": "option_b_context"},
-        {"label": "Option C", "emoji": "⚡", "value": "option_c_context"},
-        {"label": "Option D", "emoji": "🎯", "value": "option_d_context"}
+        {"label": "Option A", "emoji": "", "value": "option_a_context"},
+        {"label": "Option B", "emoji": "", "value": "option_b_context"},
+        {"label": "Option C", "emoji": "", "value": "option_c_context"},
+        {"label": "Option D", "emoji": "", "value": "option_d_context"}
       ]
     }
   ]

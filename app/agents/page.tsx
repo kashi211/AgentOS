@@ -96,7 +96,7 @@ function saveWorkflow(w: Workflow) { localStorage.setItem("agentos_workflow", JS
 /* ─── Agent modal ────────────────────────────────────────── */
 
 function emptyAgent(): Agent {
-  return { id: "", role: "", icon: "🤖", color: "#4f46e5", model: "Claude Sonnet 4.6", description: "", responsibilities: [""], systemPrompt: "", tools: [] };
+  return { id: "", role: "", icon: "", color: "#4f46e5", model: "Claude Sonnet 4.6", description: "", responsibilities: [""], systemPrompt: "", tools: [] };
 }
 
 function AgentModal({ initial, existingIds, onSave, onClose }: {
@@ -266,7 +266,7 @@ function SavePresetModal({ onSave, onClose }: {
 }) {
   const [name, setName] = useState("");
   const [tagline, setTagline] = useState("");
-  const [icon, setIcon] = useState("🤖");
+  const [icon, setIcon] = useState("");
   const [category, setCategory] = useState("Engineering");
   const [description, setDescription] = useState("");
   const [error, setError] = useState("");
@@ -492,7 +492,7 @@ export default function AgentsPage() {
               <h1 className="text-3xl font-bold" style={{ color: "var(--foreground)" }}>Agent teams</h1>
               <p className="text-sm mt-1 max-w-xl" style={{ color: "var(--muted)" }}>
                 Pick a ready-made specialist team, or build your own from scratch.
-                {activePreset && <span> Active: <strong>{activePreset.icon} {activePreset.name}</strong>.</span>}
+                {activePreset && <span> Active: <strong>{activePreset.name}</strong>.</span>}
               </p>
             </div>
             {/* Context-aware action buttons */}
