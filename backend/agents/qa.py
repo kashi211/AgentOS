@@ -228,18 +228,27 @@ Respond ONLY with valid JSON — no prose before or after:
                 "step_results": [],
             })
 
-        result = await run_browser_test(
-            files=files,
-            entry_point=entry_point,
-            steps=steps or [],
-        )
+        try:
+            result = await run_browser_test(
+                files=files,
+                entry_point=entry_point,
+                steps=steps or [],
+            )
+        except Exception as e:
+            import traceback
+            print(f"[browser_test] unexpected error: {e}\n{traceback.format_exc()}")
+            return json.dumps({
+                "ok": False,
+                "error": f"Browser test runner crashed: {e}. Fall back to static analysis.",
+                "console_errors": [],
+                "js_errors": [],
+                "step_results": [],
+            })
 
         # Strip all screenshot base64 data — images are too large for the context window.
-        # QA should judge purely from js_errors, console_errors, and step_results.
         result.pop("screenshots", None)
         result.pop("first_screenshot_base64", None)
         result.pop("last_screenshot_base64", None)
-        # Strip any per-step screenshot data too
         for step in result.get("step_results", []):
             step.pop("screenshot_base64", None)
 

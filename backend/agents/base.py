@@ -185,9 +185,15 @@ class BaseAgent(ABC):
 
     async def _call_tool(self, name: str, input: dict[str, Any]) -> str:
         handler = getattr(self, f"tool_{name}", None)
-        if handler:
+        if not handler:
+            return f"Tool '{name}' not implemented"
+        try:
             return await handler(**input)
-        return f"Tool '{name}' not implemented"
+        except Exception as e:
+            import traceback
+            tb = traceback.format_exc()
+            print(f"[tool_error] {self.role}.{name} raised: {e}\n{tb}")
+            return f"Tool '{name}' raised an error: {e}"
 
     # ── Built-in tool: web_search (Serper) ────────────────────
     @staticmethod
