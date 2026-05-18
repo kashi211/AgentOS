@@ -199,6 +199,9 @@ async def put_task_file(task_id: str, file_path: str, request: Request):
 
 
 async def _run_graph(task_id: str, goal: str, output_task_id: str | None = None, preset_id: str | None = None, web_search: bool = False):
+    import time as _time
+    _task_started_at = _time.time()
+
     # ── Optionally enrich goal with live web context ───────────────
     if web_search:
         try:
@@ -342,6 +345,7 @@ async def _run_graph(task_id: str, goal: str, output_task_id: str | None = None,
                     preset_id=task_row["preset_id"],
                     total_cost_usd=float(cost_row["total_cost"] or 0),
                     total_latency_ms=int(cost_row["total_latency"] or 0),
+                    started_at=_task_started_at,
                 ))
         except Exception as e:
             print(f"[eval] trigger error: {e}")
