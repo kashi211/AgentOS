@@ -159,14 +159,14 @@ async def list_tasks(authorization: str = Header(None)):
     async with pool.acquire() as conn:
         if user:
             rows = await conn.fetch(
-                "SELECT id, goal, status, preset_id, created_at FROM tasks WHERE user_id=$1 ORDER BY created_at DESC LIMIT 50",
+                "SELECT id, goal, status, preset_id, created_at, parent_task_id FROM tasks WHERE user_id=$1 ORDER BY created_at DESC LIMIT 50",
                 uuid.UUID(user["sub"]),
             )
         else:
             rows = await conn.fetch(
-                "SELECT id, goal, status, preset_id, created_at FROM tasks ORDER BY created_at DESC LIMIT 50"
+                "SELECT id, goal, status, preset_id, created_at, parent_task_id FROM tasks ORDER BY created_at DESC LIMIT 50"
             )
-    return [{"id": str(r["id"]), "goal": r["goal"], "status": r["status"], "preset_id": r["preset_id"], "created_at": r["created_at"].isoformat()} for r in rows]
+    return [{"id": str(r["id"]), "goal": r["goal"], "status": r["status"], "preset_id": r["preset_id"], "created_at": r["created_at"].isoformat(), "parent_task_id": str(r["parent_task_id"]) if r["parent_task_id"] else None} for r in rows]
 
 
 @router.get("/{task_id}/files")

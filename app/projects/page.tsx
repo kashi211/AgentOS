@@ -26,6 +26,7 @@ interface Task {
   status: TaskStatus;
   created_at: string;
   preset_id?: string;
+  parent_task_id?: string | null;
 }
 
 interface Message {
@@ -295,8 +296,9 @@ function MarkdownContent({ content }: { content: string }) {
 }
 
 /* ─── Pipeline node card ─────────────────────────────────── */
-function PipelineNodeCard({ node, selected, onClick }: {
+function PipelineNodeCard({ node, selected, onClick, agentMetrics }: {
   node: PipelineNode; selected: boolean; onClick: () => void;
+  agentMetrics?: Record<string, { latency_ms: number; input_tokens: number; output_tokens: number; cost_usd: number }>;
 }) {
   const color = agentColor(node.role);
   const totalOutput = node.turns.reduce((sum, t) => sum + (t.output?.content.length ?? 0), 0);
@@ -336,6 +338,11 @@ function PipelineNodeCard({ node, selected, onClick }: {
         <p className="text-xs mt-0.5" style={{ color: "var(--muted-light)", fontSize: 10 }}>
           {node.isActive ? "Working…" : hasOutput ? `${Math.round(totalOutput / 1000)}k chars` : "—"}
         </p>
+        {agentMetrics?.[node.role] && (
+          <p className="text-xs mt-0.5" style={{ color: "var(--muted-light)", fontSize: 9 }}>
+            {(agentMetrics[node.role].latency_ms / 1000).toFixed(1)}s
+          </p>
+        )}
       </div>
 
       {/* Bottom dot indicator */}
@@ -345,10 +352,11 @@ function PipelineNodeCard({ node, selected, onClick }: {
 }
 
 /* ─── Pipeline graph ─────────────────────────────────────── */
-function PipelineGraph({ nodes, selected, onSelect }: {
+function PipelineGraph({ nodes, selected, onSelect, agentMetrics }: {
   nodes: PipelineNode[];
   selected: string | null;
   onSelect: (role: string) => void;
+  agentMetrics?: Record<string, { latency_ms: number; input_tokens: number; output_tokens: number; cost_usd: number }>;
 }) {
   if (nodes.length === 0) return (
     <div className="flex items-center justify-center gap-2 py-8" style={{ borderBottom: "1px solid var(--card-border)" }}>
@@ -362,7 +370,7 @@ function PipelineGraph({ nodes, selected, onSelect }: {
       <div className="flex items-start gap-0 w-max mx-auto">
         {nodes.map((node, i) => (
           <div key={node.role} className="flex items-center gap-0">
-            <PipelineNodeCard node={node} selected={selected === node.role} onClick={() => onSelect(node.role)} />
+            <PipelineNodeCard node={node} selected={selected === node.role} onClick={() => onSelect(node.role)} agentMetrics={agentMetrics} />
             {i < nodes.length - 1 && (
               <div className="flex flex-col items-center mx-1 mt-[-20px]">
                 {/* Arrow */}
@@ -442,7 +450,7 @@ function ExpandableContent({ content, renderAs, thresholdChars = 1200 }: {
   );
 }
 
-function AgentDetail({ node, streamingToken, agentDef }: { node: PipelineNode; streamingToken?: string; agentDef?: { description?: string; responsibilities?: string[] } }) {
+function AgentDetail({ node, streamingToken, agentDef, agentMetrics }: { node: PipelineNode; streamingToken?: string; agentDef?: { description?: string; responsibilities?: string[] }; agentMetrics?: Record<string, { latency_ms: number; input_tokens: number; output_tokens: number; cost_usd: number }> }) {
   const [turn, setTurn] = useState(node.turns.length - 1);
   const color = agentColor(node.role);
 
@@ -466,6 +474,13 @@ function AgentDetail({ node, streamingToken, agentDef }: { node: PipelineNode; s
             {node.turns.length > 1 && (
               <span className="text-xs ml-2 font-medium" style={{ color: "var(--muted)" }}>
                 {node.turns.length} revision{node.turns.length > 1 ? "s" : ""}
+              </span>
+            )}
+            {agentMetrics?.[node.role] && (
+              <span className="text-xs ml-2" style={{ color: "var(--muted)" }}>
+                {(agentMetrics[node.role].latency_ms / 1000).toFixed(1)}s
+                {" · "}
+                {((agentMetrics[node.role].input_tokens + agentMetrics[node.role].output_tokens) / 1000).toFixed(1)}k tokens
               </span>
             )}
           </div>
@@ -725,6 +740,8 @@ export default function ProjectsPage() {
   const [loadingMessages, setLoadingMessages] = useState(false);
 
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+  const [expandedEdits, setExpandedEdits] = useState<Set<string>>(new Set());
+  const [agentMetrics, setAgentMetrics] = useState<Record<string, { latency_ms: number; input_tokens: number; output_tokens: number; cost_usd: number }>>({});
   const [viewMode, setViewMode] = useState<ViewMode>("pipeline");
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const [refineOpen, setRefineOpen] = useState(false);
@@ -822,12 +839,27 @@ export default function ProjectsPage() {
     } catch {}
   };
 
+  const fetchAgentMetrics = async (taskId: string) => {
+    try {
+      const r = await fetch(`${API}/metrics/tasks/${taskId}`);
+      if (r.ok) {
+        const d = await r.json();
+        const map: Record<string, { latency_ms: number; input_tokens: number; output_tokens: number; cost_usd: number }> = {};
+        for (const a of d.agents ?? []) {
+          map[a.agent_role] = a;
+        }
+        setAgentMetrics(map);
+      }
+    } catch {}
+  };
+
   const selectTask = async (taskId: string) => {
     setSelectedId(taskId);
     setLiveEvents([]);
     setSelectedAgent(null);
     setTldr(null);
     setStreamingContent({});
+    setAgentMetrics({});
     setCancelling(false);
     autoFocusedAgentRef.current = null;
     setTaskFileCount(0);
@@ -841,6 +873,7 @@ export default function ProjectsPage() {
         if (d.status === "done") {
           fetchTldr(taskId);
           fetchFileCount(taskId);
+          fetchAgentMetrics(taskId);
         }
       }
     } finally { setLoadingMessages(false); }
@@ -883,7 +916,7 @@ export default function ProjectsPage() {
       setTasks(prev => prev.map(t => {
         if (t.id !== taskId) return t;
         if (ev.type === "done" || ev.type === "done_escalated") {
-          setTimeout(() => { fetchTldr(taskId); fetchFileCount(taskId); fetchMessages(taskId); }, 1500);
+          setTimeout(() => { fetchTldr(taskId); fetchFileCount(taskId); fetchMessages(taskId); fetchAgentMetrics(taskId); }, 1500);
           return { ...t, status: "done" };
         }
         if (ev.type === "error") return { ...t, status: "failed" };
@@ -1041,12 +1074,12 @@ export default function ProjectsPage() {
       <div className="flex flex-1">
         {/* Task list — collapsible sticky sidebar */}
         {taskListCollapsed ? (
-          /* Collapsed: icon-only strip */
+          /* Collapsed: icon-only strip — root tasks only */
           <div className="shrink-0 border-r flex flex-col sticky top-0 items-center py-2 gap-1" style={{ borderColor: "var(--card-border)", background: "#fafafa", height: "100vh", maxHeight: "100vh", width: 44 }}>
             <button onClick={() => setTaskListCollapsed(false)} title="Expand project list" className="w-8 h-8 flex items-center justify-center rounded-lg mb-1" style={{ color: "var(--muted)" }}>
               <PanelLeftOpen size={16}/>
             </button>
-            {tasks.map(task => {
+            {tasks.filter(t => !t.parent_task_id).map(task => {
               const cfg = STATUS_CFG[task.status] ?? STATUS_CFG.pending;
               const active = task.id === selectedId;
               return (
@@ -1060,16 +1093,16 @@ export default function ProjectsPage() {
           /* Expanded: full w-64 sidebar */
           <div className="w-64 shrink-0 border-r flex flex-col sticky top-0" style={{ borderColor: "var(--card-border)", background: "#fafafa", height: "100vh", maxHeight: "100vh" }}>
             <div className="p-3 flex items-center justify-between border-b shrink-0" style={{ borderColor: "var(--card-border)" }}>
-              <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--muted-light)" }}>{tasks.length} projects</span>
+              <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--muted-light)" }}>{tasks.filter(t => !t.parent_task_id).length} projects</span>
               <div className="flex items-center gap-1">
                 <button onClick={fetchTasks} className="p-1 rounded" style={{ color: "var(--muted)" }} title="Refresh"><RefreshCw size={13}/></button>
                 <button onClick={() => setTaskListCollapsed(true)} className="p-1 rounded" style={{ color: "var(--muted)" }} title="Collapse sidebar"><PanelLeftClose size={14}/></button>
               </div>
             </div>
             <div className="flex-1 overflow-y-auto">
-              {tasks.length === 0 ? (
+              {tasks.filter(t => !t.parent_task_id).length === 0 ? (
                 <div className="p-6 text-center"><Lightbulb size={24} className="mx-auto mb-2" style={{ color: "var(--muted-light)" }}/><p className="text-sm" style={{ color: "var(--muted)" }}>No projects yet.</p></div>
-              ) : tasks.map(task => {
+              ) : tasks.filter(t => !t.parent_task_id).map(task => {
                 const cfg = STATUS_CFG[task.status] ?? STATUS_CFG.pending;
                 const active = task.id === selectedId;
                 const tPreset = allPresets.find(p => p.id === task.preset_id);
@@ -1077,29 +1110,68 @@ export default function ProjectsPage() {
                 const isLong = task.goal.length > 70;
                 const cardExp = expandedCards.has(task.id);
                 const isDeleting = deletingId === task.id;
+                const childTasks = tasks.filter(t => t.parent_task_id === task.id);
+                const editsExpanded = expandedEdits.has(task.id);
                 return (
-                  <div key={task.id} className="group w-full text-left px-4 py-3 border-b" style={{ borderColor: "var(--card-border)", background: active ? "var(--accent-light)" : "transparent", borderLeft: active ? "3px solid var(--accent)" : "3px solid transparent" }}>
-                    <div className="cursor-pointer" onClick={() => selectTask(task.id)}>
-                      <div className="flex items-center gap-2 mb-1">
-                        {isActive(task.status) ? <Loader2 size={10} className="animate-spin" style={{ color: cfg.color }}/> : task.status === "done" ? <CheckCircle2 size={10} style={{ color: cfg.color }}/> : task.status === "failed" ? <XCircle size={10} style={{ color: cfg.color }}/> : <Clock size={10} style={{ color: cfg.color }}/>}
-                        <span className="text-xs font-semibold" style={{ color: cfg.color }}>{cfg.label}</span>
-                        {tPreset && <span className="flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded-full" style={{ background: `${tPreset.categoryColor}12`, color: tPreset.categoryColor }}><PIcon size={8}/><span style={{ fontSize: 9 }}>{tPreset.name.split(" ")[0]}</span></span>}
-                        <button
-                          onClick={e => { e.stopPropagation(); deleteTask(task.id); }}
-                          disabled={isDeleting}
-                          title="Delete project"
-                          className="ml-auto p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
-                          style={{ color: "#dc2626" }}
-                        >
-                          {isDeleting ? <Loader2 size={11} className="animate-spin"/> : <Trash2 size={11}/>}
-                        </button>
+                  <div key={task.id} className="border-b" style={{ borderColor: "var(--card-border)" }}>
+                    <div className="group w-full text-left px-4 py-3" style={{ background: active ? "var(--accent-light)" : "transparent", borderLeft: active ? "3px solid var(--accent)" : "3px solid transparent" }}>
+                      <div className="cursor-pointer" onClick={() => selectTask(task.id)}>
+                        <div className="flex items-center gap-2 mb-1">
+                          {isActive(task.status) ? <Loader2 size={10} className="animate-spin" style={{ color: cfg.color }}/> : task.status === "done" ? <CheckCircle2 size={10} style={{ color: cfg.color }}/> : task.status === "failed" ? <XCircle size={10} style={{ color: cfg.color }}/> : <Clock size={10} style={{ color: cfg.color }}/>}
+                          <span className="text-xs font-semibold" style={{ color: cfg.color }}>{cfg.label}</span>
+                          {tPreset && <span className="flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded-full" style={{ background: `${tPreset.categoryColor}12`, color: tPreset.categoryColor }}><PIcon size={8}/><span style={{ fontSize: 9 }}>{tPreset.name.split(" ")[0]}</span></span>}
+                          <button
+                            onClick={e => { e.stopPropagation(); deleteTask(task.id); }}
+                            disabled={isDeleting}
+                            title="Delete project"
+                            className="ml-auto p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                            style={{ color: "#dc2626" }}
+                          >
+                            {isDeleting ? <Loader2 size={11} className="animate-spin"/> : <Trash2 size={11}/>}
+                          </button>
+                        </div>
+                        <p className="text-xs leading-snug" style={{ color: active ? "var(--accent)" : "var(--foreground)" }}>
+                          {isLong && !cardExp ? task.goal.slice(0, 70) + "…" : task.goal}
+                        </p>
                       </div>
-                      <p className="text-xs leading-snug" style={{ color: active ? "var(--accent)" : "var(--foreground)" }}>
-                        {isLong && !cardExp ? task.goal.slice(0, 70) + "…" : task.goal}
-                      </p>
+                      {isLong && <button onClick={e => { e.stopPropagation(); setExpandedCards(prev => { const n = new Set(prev); if (cardExp) n.delete(task.id); else n.add(task.id); return n; }); }} className="text-xs mt-1 font-medium" style={{ color: "var(--accent)" }}>{cardExp ? "Less" : "More"}</button>}
+                      <div className="flex items-center justify-between mt-1">
+                        <p className="text-xs" style={{ color: "var(--muted-light)" }}>{new Date(task.created_at).toLocaleTimeString()}</p>
+                        {childTasks.length > 0 && (
+                          <button
+                            onClick={e => { e.stopPropagation(); setExpandedEdits(prev => { const n = new Set(prev); if (editsExpanded) n.delete(task.id); else n.add(task.id); return n; }); }}
+                            className="flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded"
+                            style={{ color: "var(--accent)", background: "var(--accent-light)" }}
+                          >
+                            <ChevronRight size={10} style={{ transform: editsExpanded ? "rotate(90deg)" : "none", transition: "transform 0.15s" }}/>
+                            {childTasks.length} edit{childTasks.length > 1 ? "s" : ""}
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    {isLong && <button onClick={e => { e.stopPropagation(); setExpandedCards(prev => { const n = new Set(prev); if (cardExp) n.delete(task.id); else n.add(task.id); return n; }); }} className="text-xs mt-1 font-medium" style={{ color: "var(--accent)" }}>{cardExp ? "Less" : "More"}</button>}
-                    <p className="text-xs mt-1" style={{ color: "var(--muted-light)" }}>{new Date(task.created_at).toLocaleTimeString()}</p>
+                    {/* Collapsible edit children */}
+                    {editsExpanded && childTasks.map(child => {
+                      const childCfg = STATUS_CFG[child.status] ?? STATUS_CFG.pending;
+                      const childActive = child.id === selectedId;
+                      return (
+                        <div
+                          key={child.id}
+                          className="ml-3 border-l-2 pl-3 cursor-pointer py-2 pr-4"
+                          style={{ borderColor: "var(--accent)", background: childActive ? "var(--accent-light)" : "transparent" }}
+                          onClick={() => selectTask(child.id)}
+                        >
+                          <div className="flex items-center gap-1.5 mb-0.5">
+                            {isActive(child.status) ? <Loader2 size={9} className="animate-spin" style={{ color: childCfg.color }}/> : child.status === "done" ? <CheckCircle2 size={9} style={{ color: childCfg.color }}/> : child.status === "failed" ? <XCircle size={9} style={{ color: childCfg.color }}/> : <Clock size={9} style={{ color: childCfg.color }}/>}
+                            <span className="text-xs font-mono" style={{ color: "var(--accent)", fontSize: 9 }}>edit</span>
+                          </div>
+                          <p className="text-xs leading-snug" style={{ color: childActive ? "var(--accent)" : "var(--foreground)" }}>
+                            {child.goal.replace(/^\[Edit\]\s*/, "").slice(0, 60)}
+                            {child.goal.replace(/^\[Edit\]\s*/, "").length > 60 ? "…" : ""}
+                          </p>
+                          <p className="text-xs mt-0.5" style={{ color: "var(--muted-light)" }}>{new Date(child.created_at).toLocaleTimeString()}</p>
+                        </div>
+                      );
+                    })}
                   </div>
                 );
               })}
@@ -1181,6 +1253,7 @@ export default function ProjectsPage() {
                       nodes={pipeline}
                       selected={selectedAgent}
                       onSelect={role => setSelectedAgent(role)}
+                      agentMetrics={agentMetrics}
                     />
                   </div>
 
@@ -1206,7 +1279,7 @@ export default function ProjectsPage() {
 
                   {/* Agent detail pane — natural height, full content visible */}
                   {selectedNode ? (
-                    <AgentDetail node={selectedNode} streamingToken={streamingContent[selectedNode.role]} agentDef={taskPreset?.agents?.find(a => a.role.toLowerCase().replace(/ /g,"_") === selectedNode.role)} />
+                    <AgentDetail node={selectedNode} streamingToken={streamingContent[selectedNode.role]} agentDef={taskPreset?.agents?.find(a => a.role.toLowerCase().replace(/ /g,"_") === selectedNode.role)} agentMetrics={agentMetrics} />
                   ) : (
                     <div className="flex items-center justify-center py-16">
                       <p className="text-sm" style={{ color: "var(--muted)" }}>Click an agent in the pipeline above to inspect their input and output.</p>

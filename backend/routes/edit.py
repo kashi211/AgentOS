@@ -50,8 +50,9 @@ async def edit_project(task_id: str, body: EditRequest):
     # Create a new task record for this edit run
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            "INSERT INTO tasks (goal, status) VALUES ($1, 'pending') RETURNING id",
+            "INSERT INTO tasks (goal, status, parent_task_id) VALUES ($1, 'pending', $2) RETURNING id",
             f"[Edit] {body.message}",
+            uuid.UUID(task_id),
         )
     edit_task_id = str(row["id"])
 
