@@ -4,13 +4,19 @@ import json
 import time
 from config import settings
 
+_logger = None
+
 
 def _get_logger():
+    global _logger
+    if _logger is not None:
+        return _logger
     if not settings.braintrust_api_key:
         return None
     try:
         import braintrust
-        return braintrust.init_logger(project="AgentOS", api_key=settings.braintrust_api_key)
+        _logger = braintrust.init_logger(project="AgentOS", api_key=settings.braintrust_api_key)
+        return _logger
     except Exception as e:
         print(f"[braintrust] init error: {e}")
         return None
@@ -171,6 +177,7 @@ async def log_task_completion(
                 },
                 tags=tags,
             )
+            logger.flush()
             print(
                 f"[braintrust] logged task {task_id} — "
                 f"overall {scores.get('overall')}/10 "
