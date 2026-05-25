@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { ArrowLeft, ExternalLink, RefreshCw, Send, Loader2, Save, Maximize2, Minimize2, Expand } from "lucide-react";
 import Link from "next/link";
 
-const API = "/backend";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 const WS  = process.env.NEXT_PUBLIC_WS_URL  ?? "ws://localhost:8000";
 
 interface TaskFile { path: string; size: number; }
