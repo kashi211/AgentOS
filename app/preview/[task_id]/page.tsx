@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
-import { ArrowLeft, ExternalLink, RefreshCw, Send, Loader2, Save } from "lucide-react";
+import { ArrowLeft, ExternalLink, RefreshCw, Send, Loader2, Save, Maximize2, Minimize2, Expand } from "lucide-react";
 import Link from "next/link";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -63,10 +63,19 @@ export default function ProjectPage() {
   const [threads, setThreads] = useState<EditThread[]>([]);
   const [editing, setEditing] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [theater, setTheater] = useState(() => {
+    if (typeof window === "undefined") return false;
+    // Auto-enable theater if launched via "Full screen" button from projects page
+    const key = `theater-${typeof window !== "undefined" ? window.location.pathname.split("/").pop() : ""}`;
+    const flag = sessionStorage.getItem(key);
+    if (flag) { sessionStorage.removeItem(key); return true; }
+    return false;
+  });
   const chatRef = useRef<HTMLDivElement>(null);
   const editWsRef = useRef<WebSocket | null>(null);
   const selectedFileRef = useRef<string | null>(null);
   const savedContentRef = useRef<string>("");
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const storageKey = `edit-threads-${task_id}`;
 
@@ -225,14 +234,24 @@ export default function ProjectPage() {
   // Use same-origin proxy so the iframe is interactive (no cross-origin restrictions)
   const demoSrc = hasDemo ? `/api/preview/${task_id}/${selectedFile}` : undefined;
 
+  const enterFullscreen = () => {
+    const el = iframeRef.current as HTMLIFrameElement & { mozRequestFullScreen?: () => void; webkitRequestFullscreen?: () => void };
+    if (el?.requestFullscreen) el.requestFullscreen();
+    else if (el?.mozRequestFullScreen) el.mozRequestFullScreen();
+    else if (el?.webkitRequestFullscreen) el.webkitRequestFullscreen();
+    else if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen();
+  };
+
   return (
     <div style={{ height: "100dvh", display: "flex", flexDirection: "column", background: "#0f172a", overflow: "hidden" }}>
 
       {/* Top bar */}
       <div style={{ height: 52, display: "flex", alignItems: "center", gap: 10, padding: "0 16px", borderBottom: "1px solid #1e293b", flexShrink: 0, background: "#0a0f1e" }}>
-        <Link href="/projects" style={{ color: "#475569", display: "flex", alignItems: "center", padding: 6, borderRadius: 6, border: "1px solid #1e293b" }}>
-          <ArrowLeft size={15} style={{ color: "#94a3b8" }} />
-        </Link>
+        {!theater && (
+          <Link href="/projects" style={{ color: "#475569", display: "flex", alignItems: "center", padding: 6, borderRadius: 6, border: "1px solid #1e293b" }}>
+            <ArrowLeft size={15} style={{ color: "#94a3b8" }} />
+          </Link>
+        )}
         <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, background: "rgba(255,255,255,0.03)", border: "1px solid #1e293b", borderRadius: 8, padding: "0 12px", height: 34, overflow: "hidden", minWidth: 0 }}>
           <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#22c55e", flexShrink: 0 }} />
           <span style={{ color: "#94a3b8", fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{goal || task_id}</span>
@@ -240,14 +259,31 @@ export default function ProjectPage() {
         <button onClick={() => { if (selectedFile) selectFile(selectedFile); setIframeKey((k) => k + 1); fetchFiles(); }} style={{ color: "#94a3b8", display: "flex", padding: 6, borderRadius: 6, border: "1px solid #1e293b", cursor: "pointer", background: "transparent" }} title="Reload">
           <RefreshCw size={14} />
         </button>
-        {/* Open App button hidden until file serving works on Railway */}
+        {/* Theater mode toggle */}
+        <button
+          onClick={() => setTheater(t => !t)}
+          title={theater ? "Exit theater mode" : "Theater mode — hide sidebars"}
+          style={{ color: theater ? "#a5b4fc" : "#94a3b8", display: "flex", padding: 6, borderRadius: 6, border: `1px solid ${theater ? "#4f46e5" : "#1e293b"}`, cursor: "pointer", background: theater ? "rgba(79,70,229,0.15)" : "transparent" }}
+        >
+          {theater ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+        </button>
+        {/* Native fullscreen — only shown in demo mode when an HTML file is selected */}
+        {hasDemo && mode === "demo" && (
+          <button
+            onClick={enterFullscreen}
+            title="Full screen (browser native)"
+            style={{ color: "#94a3b8", display: "flex", padding: 6, borderRadius: 6, border: "1px solid #1e293b", cursor: "pointer", background: "transparent" }}
+          >
+            <Expand size={14} />
+          </button>
+        )}
       </div>
 
       {/* Body */}
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
 
-        {/* File tree */}
-        <div style={{ width: 220, flexShrink: 0, borderRight: "1px solid #1e293b", display: "flex", flexDirection: "column", background: "#0a0f1e", overflow: "hidden" }}>
+        {/* File tree — hidden in theater mode */}
+        <div style={{ width: theater ? 0 : 220, flexShrink: 0, borderRight: theater ? "none" : "1px solid #1e293b", display: theater ? "none" : "flex", flexDirection: "column", background: "#0a0f1e", overflow: "hidden" }}>
           <div style={{ padding: "10px 16px 8px", borderBottom: "1px solid #1e293b" }}>
             <span style={{ color: "#475569", fontSize: 11, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase" }}>Files · {files.length}</span>
           </div>
@@ -295,10 +331,12 @@ export default function ProjectPage() {
             </div>
           ) : mode === "demo" && hasDemo ? (
             <iframe
+              ref={iframeRef}
               key={`${iframeKey}-${selectedFile}`}
               src={demoSrc}
               style={{ flex: 1, width: "100%", border: "none", background: "#fff" }}
               title="App Demo"
+              allowFullScreen
             />
           ) : (
             <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
@@ -325,8 +363,8 @@ export default function ProjectPage() {
           )}
         </div>
 
-        {/* Chat panel */}
-        <div style={{ width: 340, flexShrink: 0, borderLeft: "1px solid #1e293b", display: "flex", flexDirection: "column", background: "#0a0f1e", overflow: "hidden" }}>
+        {/* Chat panel — hidden in theater mode */}
+        <div style={{ width: theater ? 0 : 340, flexShrink: 0, borderLeft: theater ? "none" : "1px solid #1e293b", display: theater ? "none" : "flex", flexDirection: "column", background: "#0a0f1e", overflow: "hidden" }}>
           {/* Chat header */}
           <div style={{ padding: "12px 16px", borderBottom: "1px solid #1e293b", flexShrink: 0 }}>
             <p style={{ color: "#94a3b8", fontSize: 13, fontWeight: 600, margin: 0 }}>Edit with Agents</p>

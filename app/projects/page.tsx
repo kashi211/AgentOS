@@ -7,7 +7,7 @@ import {
   BookOpen, Layers, Bot, BarChart3, ShieldCheck, FlaskConical,
   ScrollText, Lightbulb, ArrowRight, CircleDot, Terminal,
   ArrowDownRight, ChevronRight, RotateCcw, Inbox, Trash2,
-  PanelLeftClose, PanelLeftOpen,
+  PanelLeftClose, PanelLeftOpen, Maximize2,
 } from "lucide-react";
 import Link from "next/link";
 import { BUILTIN_PRESETS, loadCustomPresets, saveCustomPresets, loadActivePresetId, fetchPresetsFromAPI, type Preset } from "@/lib/presets";
@@ -673,7 +673,16 @@ function DeliveryPanel({ task, messages, preset, fileCount }: { task: Task; mess
               ))}
             </div>
           )}
-          {isDevPreset && <Link href={`/preview/${task.id}`} target="_blank" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: "var(--accent)" }}><ExternalLink size={11}/> Preview app</Link>}
+          {isDevPreset && (
+            <div className="flex items-center gap-1.5">
+              <Link href={`/preview/${task.id}`} target="_blank" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: "var(--accent)" }}>
+                <ExternalLink size={11}/> Preview
+              </Link>
+              <Link href={`/preview/${task.id}`} target="_blank" className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold" style={{ background: "var(--accent-light)", color: "var(--accent)", border: "1px solid rgba(79,70,229,0.2)" }} title="Open in full-screen theater mode" onClick={() => { /* theater mode auto-activates via localStorage */ sessionStorage.setItem(`theater-${task.id}`, "1"); }}>
+                <Maximize2 size={11}/> Full screen
+              </Link>
+            </div>
+          )}
         </div>
       </div>
       <div className="p-5">
@@ -1033,10 +1042,19 @@ export default function ProjectsPage() {
   // Only include live events for agents not yet persisted to DB.
   // This prevents short WS preview strings ("3 steps planned") from
   // overriding the real full output that was already saved to the DB.
+  // Also filter agent_input live events when the DB already has one for that role
+  // (the DB record is saved right before the WS broadcast, so they can coexist briefly).
   const rolesWithDbOutput = new Set(
     messages.filter(m => m.type === "agent_output").map(m => m.agent_role)
   );
-  const filteredLive = liveEvents.filter(e => !rolesWithDbOutput.has(e.agent_role));
+  const rolesWithDbInput = new Set(
+    messages.filter(m => m.type === "agent_input").map(m => m.agent_role)
+  );
+  const filteredLive = liveEvents.filter(e => {
+    if (rolesWithDbOutput.has(e.agent_role)) return false;          // full output in DB, skip all live
+    if (e.type === "agent_input" && rolesWithDbInput.has(e.agent_role)) return false; // already have DB input
+    return true;
+  });
   const allMessages = [...messages, ...filteredLive];
   const pipeline = buildPipeline(allMessages);
 

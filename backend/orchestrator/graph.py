@@ -16,6 +16,7 @@ from agents.qa import QAAgent
 from agents.writer import WriterAgent
 from memory.store import MemoryStore
 from db.connection import get_pool
+from routes.ws import broadcast
 
 MAX_REVISIONS = 3
 
@@ -54,6 +55,7 @@ async def ceo_node(state: AgentState) -> dict:
     agent = CEOAgent(state["task_id"], memory)
     ceo_input = f"New goal received:\n\n{state['goal']}\n\nProduce the execution plan."
     await _save_message(state["task_id"], "ceo", "agent_input", ceo_input)
+    await broadcast(state["task_id"], {"type": "agent_input", "agent": "ceo", "content": ceo_input[:280] + ("…" if len(ceo_input) > 280 else "")})
     response = await agent.run(ceo_input)
     try:
         plan_data = agent.parse_json(response)
@@ -81,6 +83,7 @@ async def planner_node(state: AgentState) -> dict:
         "Produce the detailed step-by-step execution plan."
     )
     await _save_message(state["task_id"], "planner", "agent_input", planner_input)
+    await broadcast(state["task_id"], {"type": "agent_input", "agent": "planner", "content": planner_input[:280] + ("…" if len(planner_input) > 280 else "")})
     response = await agent.run(planner_input)
     try:
         steps_data = agent.parse_json(response)
@@ -145,6 +148,7 @@ async def developer_node(state: AgentState) -> dict:
 
     # Save agent input so frontend can show what was passed between agents
     await _save_message(state["task_id"], save_role, "agent_input", context)
+    await broadcast(state["task_id"], {"type": "agent_input", "agent": save_role, "content": context[:280] + ("…" if len(context) > 280 else "")})
 
     response = await agent.run(context)
 
@@ -180,6 +184,7 @@ async def qa_node(state: AgentState) -> dict:
         "Now use list_files and read_file to inspect the actual code, then return your JSON verdict."
     )
     await _save_message(state["task_id"], "qa", "agent_input", qa_context)
+    await broadcast(state["task_id"], {"type": "agent_input", "agent": "qa", "content": qa_context[:280] + ("…" if len(qa_context) > 280 else "")})
     response = await agent.run(qa_context)
     await _save_message(state["task_id"], "qa", "agent_output", response)
 
@@ -229,6 +234,7 @@ async def writer_node(state: AgentState) -> dict:
         "Write a concise README for what was built."
     )
     await _save_message(state["task_id"], "writer", "agent_input", writer_input)
+    await broadcast(state["task_id"], {"type": "agent_input", "agent": "writer", "content": writer_input[:280] + ("…" if len(writer_input) > 280 else "")})
     response = await agent.run(writer_input)
     await _save_message(state["task_id"], "writer", "agent_output", response)
     await _update_task_status(state["task_id"], "done")
