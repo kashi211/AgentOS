@@ -13,7 +13,10 @@ import Link from "next/link";
 import { BUILTIN_PRESETS, loadCustomPresets, saveCustomPresets, loadActivePresetId, fetchPresetsFromAPI, type Preset } from "@/lib/presets";
 
 /* ─── API config ─────────────────────────────────────────── */
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+// HTTP calls go through the Next.js proxy (/backend/* → Railway server-side)
+// so the browser is always same-origin and CORS is never an issue.
+const API = "/backend";
+// WebSocket stays direct — browsers don't enforce CORS on WS connections.
 const WS  = process.env.NEXT_PUBLIC_WS_URL  ?? "ws://localhost:8000";
 
 /* ─── Types ──────────────────────────────────────────────── */

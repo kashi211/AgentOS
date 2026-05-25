@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+// Server-side route — use private BACKEND_URL if set, else fall back to the
+// public API URL (both are fine here since there's no browser CORS check).
+const API =
+  process.env.BACKEND_URL ||
+  process.env.NEXT_PUBLIC_API_URL ||
+  "http://localhost:8000";
 
 export async function GET(
   _req: NextRequest,
