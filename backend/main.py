@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from db.connection import init_db, close_db
+from db.connection import init_db, close_db, get_pool
 from routes.tasks import router as tasks_router
 from routes.ws import router as ws_router
 from routes.run import router as run_router
@@ -56,4 +56,13 @@ app.mount("/output", StaticFiles(directory="output"), name="output")
 
 @app.get("/health")
 async def health():
+    # Actually test the DB — if the connection pool is stale Railway will
+    # detect the failure and restart the container rather than serving 502s.
+    try:
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            await conn.fetchval("SELECT 1")
+    except Exception as e:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=503, detail=f"DB unhealthy: {e}")
     return {"status": "ok", "version": "0.1.0"}

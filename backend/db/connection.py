@@ -8,9 +8,13 @@ async def init_db():
     global _pool
     _pool = await asyncpg.create_pool(
         dsn=settings.database_url,
-        min_size=2,
+        min_size=1,
         max_size=10,
-        statement_cache_size=0,  # prevents InvalidCachedStatementError after schema migrations
+        statement_cache_size=0,       # prevents InvalidCachedStatementError after schema migrations
+        max_inactive_connection_lifetime=300,  # recycle idle connections every 5 min
+                                               # Neon drops idle connections at ~5 min, so this
+                                               # prevents asyncpg handing a dead socket to a request
+        command_timeout=30,           # any single query hanging > 30s is killed, not hung forever
     )
     await _create_schema()
 
