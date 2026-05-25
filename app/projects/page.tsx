@@ -302,6 +302,7 @@ function PipelineNodeCard({ node, selected, onClick, agentMetrics }: {
 }) {
   const color = agentColor(node.role);
   const totalOutput = node.turns.reduce((sum, t) => sum + (t.output?.content.length ?? 0), 0);
+  const charsLabel = totalOutput === 0 ? "—" : totalOutput < 1000 ? `${totalOutput} chars` : `${(totalOutput / 1000).toFixed(1)}k chars`;
   const hasOutput = totalOutput > 0;
 
   return (
@@ -336,7 +337,7 @@ function PipelineNodeCard({ node, selected, onClick, agentMetrics }: {
           {node.role.replace(/_/g, " ")}
         </p>
         <p className="text-xs mt-0.5" style={{ color: "var(--muted-light)", fontSize: 10 }}>
-          {node.isActive ? "Working…" : hasOutput ? `${Math.round(totalOutput / 1000)}k chars` : "—"}
+          {node.isActive ? "Working…" : hasOutput ? charsLabel : "—"}
         </p>
         {agentMetrics?.[node.role] && (
           <p className="text-xs mt-0.5" style={{ color: "var(--muted-light)", fontSize: 9 }}>
@@ -755,6 +756,9 @@ export default function ProjectsPage() {
   const [taskListCollapsed, setTaskListCollapsed] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const wsReconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wsReconnectCountRef = useRef(0);
+  const wsTaskIdRef = useRef<string | null>(null);
   const autoFocusedAgentRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -853,36 +857,17 @@ export default function ProjectsPage() {
     } catch {}
   };
 
-  const selectTask = async (taskId: string) => {
-    setSelectedId(taskId);
-    setLiveEvents([]);
-    setSelectedAgent(null);
-    setTldr(null);
-    setStreamingContent({});
-    setAgentMetrics({});
-    setCancelling(false);
-    autoFocusedAgentRef.current = null;
-    setTaskFileCount(0);
-    setLoadingMessages(true);
-    wsRef.current?.close();
-    try {
-      const r = await fetch(`${API}/tasks/${taskId}`);
-      if (r.ok) {
-        const d = await r.json();
-        setMessages(d.messages ?? []);
-        if (d.status === "done") {
-          fetchTldr(taskId);
-          fetchFileCount(taskId);
-          fetchAgentMetrics(taskId);
-        }
-      }
-    } finally { setLoadingMessages(false); }
+  // ── WebSocket connect helper (called on first open + every reconnect) ──
+  const connectWs = (taskId: string) => {
+    if (wsTaskIdRef.current !== taskId) return; // task changed, abort
+    if (wsReconnectRef.current) { clearTimeout(wsReconnectRef.current); wsReconnectRef.current = null; }
 
     const ws = new WebSocket(`${WS}/ws/${taskId}`);
+
     ws.onmessage = e => {
       const ev: LiveEvent = JSON.parse(e.data);
+      wsReconnectCountRef.current = 0; // reset backoff on any message
 
-      // Handle streaming tokens — auto-focus only when a NEW agent starts
       if (ev.type === "token") {
         setStreamingContent(prev => ({
           ...prev,
@@ -895,17 +880,12 @@ export default function ProjectsPage() {
         return;
       }
 
-      // Auto-focus the agent that just started working (custom presets)
       if (ev.type === "agent_input") {
         if (ev.agent !== autoFocusedAgentRef.current) {
           autoFocusedAgentRef.current = ev.agent;
           setSelectedAgent(ev.agent);
         }
       }
-
-      // Don't clear streaming buffer on agent_output — the 300-char live preview
-      // is uglier than the full streamed content. Keep streaming content visible
-      // until fetchMessages brings the real full DB output.
 
       if (ev.type === "cancelled") {
         setTasks(prev => prev.map(t => t.id !== taskId ? t : { ...t, status: "cancelled" }));
@@ -926,7 +906,82 @@ export default function ProjectsPage() {
         return t;
       }));
     };
+
+    ws.onclose = () => {
+      if (wsTaskIdRef.current !== taskId) return; // task changed, don't reconnect
+      // Check if task is already done via the tasks list — if so, just refresh messages
+      setTasks(prev => {
+        const task = prev.find(t => t.id === taskId);
+        if (task && (task.status === "done" || task.status === "failed" || task.status === "cancelled")) {
+          fetchMessages(taskId);
+          fetchAgentMetrics(taskId);
+          return prev;
+        }
+        // Task still running — reconnect with exponential back-off (max 5 attempts)
+        const attempt = wsReconnectCountRef.current;
+        if (attempt < 5) {
+          const delay = Math.min(1000 * Math.pow(2, attempt), 16000); // 1s, 2s, 4s, 8s, 16s
+          wsReconnectCountRef.current = attempt + 1;
+          wsReconnectRef.current = setTimeout(() => {
+            // Poll task status first to pick up any changes during disconnect
+            fetch(`${API}/tasks/${taskId}`)
+              .then(r => r.ok ? r.json() : null)
+              .then(d => {
+                if (!d || wsTaskIdRef.current !== taskId) return;
+                if (d.status === "done" || d.status === "failed" || d.status === "cancelled") {
+                  setMessages(d.messages ?? []);
+                  setTasks(p => p.map(t => t.id === taskId ? { ...t, status: d.status } : t));
+                  if (d.status === "done") { fetchTldr(taskId); fetchFileCount(taskId); fetchAgentMetrics(taskId); }
+                } else {
+                  // Still running — reconnect WS
+                  setMessages(d.messages ?? []);
+                  connectWs(taskId);
+                }
+              })
+              .catch(() => connectWs(taskId));
+          }, delay);
+        }
+        return prev;
+      });
+    };
+
+    ws.onerror = () => ws.close(); // triggers onclose which handles reconnect
+
     wsRef.current = ws;
+  };
+
+  const selectTask = async (taskId: string) => {
+    setSelectedId(taskId);
+    setLiveEvents([]);
+    setSelectedAgent(null);
+    setTldr(null);
+    setStreamingContent({});
+    setAgentMetrics({});
+    setCancelling(false);
+    autoFocusedAgentRef.current = null;
+    setTaskFileCount(0);
+    setLoadingMessages(true);
+
+    // Cancel any pending reconnect for the previous task
+    if (wsReconnectRef.current) { clearTimeout(wsReconnectRef.current); wsReconnectRef.current = null; }
+    wsRef.current?.close();
+    wsTaskIdRef.current = taskId;
+    wsReconnectCountRef.current = 0;
+
+    try {
+      const r = await fetch(`${API}/tasks/${taskId}`);
+      if (r.ok) {
+        const d = await r.json();
+        setMessages(d.messages ?? []);
+        if (d.status === "done") {
+          fetchTldr(taskId);
+          fetchFileCount(taskId);
+          fetchAgentMetrics(taskId);
+        }
+      }
+    } finally { setLoadingMessages(false); }
+
+    connectWs(taskId);
   };
 
   const submitTask = async () => {
