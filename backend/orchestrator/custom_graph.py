@@ -61,7 +61,15 @@ class DynamicAgent(BaseAgent):
     @property
     def tools(self) -> list[dict]:
         tool_defs = []
-        if "read_file" in self._tool_names:
+        names = self._tool_names
+
+        if "web_search" in names:
+            tool_defs.append(self._web_search_tool_def())
+        if "fetch_url" in names:
+            tool_defs.append(self._fetch_url_tool_def())
+        if "run_terminal_command" in names:
+            tool_defs.append(self._run_terminal_command_tool_def())
+        if "read_file" in names:
             tool_defs.append({
                 "name": "read_file",
                 "description": "Read a file from the task output directory.",
@@ -71,7 +79,7 @@ class DynamicAgent(BaseAgent):
                     "required": ["filename"],
                 },
             })
-        if "write_file" in self._tool_names:
+        if "write_file" in names:
             tool_defs.append({
                 "name": "write_file",
                 "description": "Write content to a file in the task output directory.",
@@ -82,6 +90,35 @@ class DynamicAgent(BaseAgent):
                         "content":  {"type": "string"},
                     },
                     "required": ["filename", "content"],
+                },
+            })
+        if "list_files" in names:
+            tool_defs.append({
+                "name": "list_files",
+                "description": "List all files in the task output directory.",
+                "input_schema": {"type": "object", "properties": {}, "required": []},
+            })
+        if "delete_file" in names:
+            tool_defs.append({
+                "name": "delete_file",
+                "description": "Delete a file from the task output directory.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {"filename": {"type": "string"}},
+                    "required": ["filename"],
+                },
+            })
+        if "move_file" in names:
+            tool_defs.append({
+                "name": "move_file",
+                "description": "Rename or move a file within the task output directory.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "src": {"type": "string"},
+                        "dst": {"type": "string"},
+                    },
+                    "required": ["src", "dst"],
                 },
             })
         return tool_defs
@@ -95,6 +132,31 @@ class DynamicAgent(BaseAgent):
         from storage.r2 import write_file
         write_file(self.task_id, filename, content)
         return f"Wrote {len(content)} chars to {filename}."
+
+    async def tool_list_files(self) -> str:
+        from storage.r2 import list_files
+        import json
+        files = list_files(self.task_id)
+        return json.dumps(files, indent=2) if files else "No files found."
+
+    async def tool_delete_file(self, filename: str) -> str:
+        import os
+        path = os.path.join("output", self.task_id, filename)
+        if os.path.exists(path):
+            os.remove(path)
+            return f"Deleted {filename}."
+        return f"File not found: {filename}"
+
+    async def tool_move_file(self, src: str, dst: str) -> str:
+        import os, shutil
+        base = os.path.join("output", self.task_id)
+        src_path = os.path.join(base, src)
+        dst_path = os.path.join(base, dst)
+        if not os.path.exists(src_path):
+            return f"Source not found: {src}"
+        os.makedirs(os.path.dirname(dst_path), exist_ok=True)
+        shutil.move(src_path, dst_path)
+        return f"Moved {src} → {dst}."
 
 
 # ── Pass/fail heuristic for loop nodes ───────────────────────

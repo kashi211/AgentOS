@@ -8,7 +8,8 @@ import {
   Swords, FileEdit, TrendingUp, TrendingDown, Database, TriangleAlert,
   Brain, FileText, Flag, Shield, Globe, Target, BookOpen,
   MessageSquare, Quote, FolderOpen, MessageCircle, Package,
-  Scale, Megaphone, type LucideIcon,
+  Scale, Megaphone, Link, Terminal, FilePlus, FileX, FolderSymlink,
+  FileSearch, FileOutput, List, type LucideIcon,
 } from "lucide-react";
 import {
   BUILTIN_PRESETS, loadCustomPresets, saveCustomPresets,
@@ -70,6 +71,30 @@ function PresetIcon({ category, color, size = 18 }: { category: string; color: s
 /* ─── Constants ──────────────────────────────────────────── */
 
 const MODELS = ["Claude Opus 4.7", "Claude Sonnet 4.6", "Claude Haiku 4.5"];
+
+/* ─── Tool catalogue ─────────────────────────────────────── */
+interface ToolDef {
+  id: string;
+  label: string;
+  desc: string;
+  icon: LucideIcon;
+  color: string;
+  group: string;
+}
+
+const TOOL_CATALOGUE: ToolDef[] = [
+  // Web
+  { id: "web_search",           label: "Web Search",          desc: "Search Google via Serper for current info, news, prices",        icon: Search,        color: "#0284c7", group: "Web" },
+  { id: "fetch_url",            label: "Fetch URL",           desc: "Download and read full content of any public webpage or doc",     icon: Link,          color: "#0284c7", group: "Web" },
+  // Files
+  { id: "read_file",            label: "Read File",           desc: "Read an existing file from the project output directory",         icon: FileSearch,    color: "#7c3aed", group: "Files" },
+  { id: "write_file",           label: "Write File",          desc: "Create or overwrite a file in the project output directory",      icon: FileOutput,    color: "#7c3aed", group: "Files" },
+  { id: "list_files",           label: "List Files",          desc: "List all files written so far for this task",                     icon: List,          color: "#7c3aed", group: "Files" },
+  { id: "delete_file",          label: "Delete File",         desc: "Remove a file from the project output directory",                 icon: FileX,         color: "#7c3aed", group: "Files" },
+  { id: "move_file",            label: "Move / Rename File",  desc: "Move or rename a file within the project output directory",       icon: FolderSymlink, color: "#7c3aed", group: "Files" },
+  // System
+  { id: "run_terminal_command", label: "Terminal",            desc: "Run shell commands — npm install, pip, curl, git, tests, etc.",   icon: Terminal,      color: "#059669", group: "System" },
+];
 const CATEGORIES = ["All", "Engineering", "Research", "Finance", "Legal", "Marketing"];
 const CATEGORY_COLORS: Record<string, string> = {
   Engineering: "#0284c7", Research: "#7c3aed", Finance: "#059669",
@@ -140,9 +165,44 @@ function AgentModal({ initial, existingIds, onSave, onClose }: {
           </div>
           <div><label className="block text-xs font-semibold mb-1.5" style={{ color: "var(--muted)" }}>System prompt</label><textarea className="w-full px-3 py-2 rounded-lg border text-sm font-mono outline-none resize-none" style={{ borderColor: "var(--card-border)", background: "var(--card)", color: "var(--foreground)" }} rows={4} value={form.systemPrompt} onChange={e => set("systemPrompt", e.target.value)} placeholder="You are..." /></div>
           <div>
-            <div className="flex items-center justify-between mb-2"><label className="text-xs font-semibold" style={{ color: "var(--muted)" }}>Tools</label><button onClick={() => set("tools", [...form.tools, ""])} className="text-xs px-2 py-1 rounded-md flex items-center gap-1" style={{ background: "var(--accent-light)", color: "var(--accent)" }}><Plus size={11} /> Add</button></div>
-            {form.tools.length === 0 && <p className="text-xs" style={{ color: "var(--muted-light)" }}>No tools — add function names this agent can call.</p>}
-            <div className="space-y-2">{form.tools.map((t, i) => (<div key={i} className="flex gap-2"><input className="flex-1 px-3 py-1.5 rounded-lg border text-sm font-mono outline-none" style={{ borderColor: "var(--card-border)", background: "var(--card)", color: "var(--foreground)" }} value={t} onChange={e => { const a = [...form.tools]; a[i] = e.target.value; set("tools", a); }} placeholder="tool_name" /><button onClick={() => set("tools", form.tools.filter((_, j) => j !== i))} className="p-1.5 rounded-lg" style={{ color: "var(--muted)" }}><X size={14} /></button></div>))}</div>
+            <label className="block text-xs font-semibold mb-3" style={{ color: "var(--muted)" }}>Tools</label>
+            {(["Web", "Files", "System"] as const).map(group => {
+              const groupTools = TOOL_CATALOGUE.filter(t => t.group === group);
+              return (
+                <div key={group} className="mb-3">
+                  <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: "var(--muted-light)" }}>{group}</p>
+                  <div className="grid grid-cols-1 gap-1.5">
+                    {groupTools.map(tool => {
+                      const active = form.tools.includes(tool.id);
+                      const Icon = tool.icon;
+                      return (
+                        <button
+                          key={tool.id}
+                          type="button"
+                          onClick={() => set("tools", active ? form.tools.filter(t => t !== tool.id) : [...form.tools, tool.id])}
+                          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all"
+                          style={{
+                            background: active ? `${tool.color}10` : "var(--card)",
+                            border: active ? `1.5px solid ${tool.color}40` : "1px solid var(--card-border)",
+                          }}
+                        >
+                          <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: active ? `${tool.color}18` : "var(--card-border)" }}>
+                            <Icon size={14} style={{ color: active ? tool.color : "var(--muted-light)" }} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs font-semibold" style={{ color: active ? "var(--foreground)" : "var(--muted)" }}>{tool.label}</div>
+                            <div className="text-xs truncate" style={{ color: "var(--muted-light)" }}>{tool.desc}</div>
+                          </div>
+                          <div className="w-4 h-4 rounded border flex items-center justify-center shrink-0" style={{ background: active ? tool.color : "transparent", borderColor: active ? tool.color : "var(--card-border)" }}>
+                            {active && <CheckCircle2 size={10} color="#fff" />}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
         <div className="sticky bottom-0 flex justify-end gap-3 px-6 py-4 border-t" style={{ background: "var(--background)", borderColor: "var(--card-border)" }}>
@@ -633,8 +693,18 @@ export default function AgentsPage() {
                             </div>
                           )}
                           {agent.tools.length > 0 && (
-                            <div className="flex gap-2 flex-wrap">
-                              {agent.tools.map(t => <span key={t} className="text-xs px-2 py-0.5 rounded font-mono" style={{ background: "var(--card-border)", color: "var(--muted)" }}>{t}()</span>)}
+                            <div className="flex gap-1.5 flex-wrap">
+                              {agent.tools.map(t => {
+                                const def = TOOL_CATALOGUE.find(td => td.id === t);
+                                const Icon = def?.icon ?? Code2;
+                                const color = def?.color ?? "var(--muted)";
+                                return (
+                                  <span key={t} className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-lg font-medium" style={{ background: def ? `${color}10` : "var(--card-border)", color: def ? color : "var(--muted)", border: `1px solid ${def ? `${color}25` : "var(--card-border)"}` }}>
+                                    <Icon size={10} />
+                                    {def?.label ?? t}
+                                  </span>
+                                );
+                              })}
                             </div>
                           )}
                         </div>

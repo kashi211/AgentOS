@@ -195,6 +195,137 @@ class BaseAgent(ABC):
             print(f"[tool_error] {self.role}.{name} raised: {e}\n{tb}")
             return f"Tool '{name}' raised an error: {e}"
 
+    # ── Built-in tool: fetch_url ───────────────────────────────
+    @staticmethod
+    def _fetch_url_tool_def() -> dict:
+        return {
+            "name": "fetch_url",
+            "description": (
+                "Fetch the full text content of any public URL — web pages, API docs, "
+                "news articles, GitHub READMEs, etc. Returns cleaned text (HTML stripped). "
+                "Use this when you need to read the actual content of a specific page, "
+                "not just a search snippet."
+            ),
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "The full URL to fetch (must start with http:// or https://)",
+                    },
+                    "max_chars": {
+                        "type": "integer",
+                        "description": "Max characters to return (default 8000, max 20000)",
+                        "default": 8000,
+                    },
+                },
+                "required": ["url"],
+            },
+        }
+
+    async def tool_fetch_url(self, url: str, max_chars: int = 8000) -> str:
+        """Fetch a URL and return its text content."""
+        import urllib.request
+        import html
+        import re as _re
+
+        if not url.startswith(("http://", "https://")):
+            return "Error: URL must start with http:// or https://"
+
+        max_chars = min(max(500, max_chars), 20000)
+
+        try:
+            req = urllib.request.Request(
+                url,
+                headers={"User-Agent": "Mozilla/5.0 (compatible; AgentOS/1.0)"},
+            )
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                content_type = resp.headers.get("Content-Type", "")
+                raw = resp.read(max_chars * 4).decode("utf-8", errors="replace")
+        except Exception as e:
+            return f"Failed to fetch {url}: {e}"
+
+        # Strip HTML tags and decode entities
+        if "html" in content_type or raw.lstrip().startswith("<"):
+            # Remove scripts, styles, and nav boilerplate
+            raw = _re.sub(r"<(script|style|nav|header|footer)[^>]*>.*?</\1>", "", raw, flags=_re.DOTALL | _re.IGNORECASE)
+            # Strip all remaining tags
+            raw = _re.sub(r"<[^>]+>", " ", raw)
+            raw = html.unescape(raw)
+
+        # Collapse whitespace
+        raw = _re.sub(r"\n{3,}", "\n\n", raw)
+        raw = _re.sub(r"[ \t]{2,}", " ", raw)
+        raw = raw.strip()
+
+        if len(raw) > max_chars:
+            raw = raw[:max_chars] + f"\n\n[truncated — {len(raw)} total chars]"
+
+        return f"Content from {url}:\n\n{raw}"
+
+    # ── Built-in tool: run_terminal_command ────────────────────
+    @staticmethod
+    def _run_terminal_command_tool_def() -> dict:
+        return {
+            "name": "run_terminal_command",
+            "description": (
+                "Run a shell command in a sandboxed environment and return its output. "
+                "Useful for: installing packages (pip install, npm install), running tests, "
+                "checking tool versions, curling endpoints, git operations, file manipulation. "
+                "Commands run in a temporary directory. Timeout: 30 seconds."
+            ),
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "command": {
+                        "type": "string",
+                        "description": "The shell command to execute",
+                    },
+                    "timeout": {
+                        "type": "integer",
+                        "description": "Timeout in seconds (default 30, max 60)",
+                        "default": 30,
+                    },
+                },
+                "required": ["command"],
+            },
+        }
+
+    async def tool_run_terminal_command(self, command: str, timeout: int = 30) -> str:
+        """Run a shell command and return stdout + stderr."""
+        import asyncio
+        import shlex
+
+        # Block obviously dangerous commands
+        _BLOCKED = ["rm -rf /", "mkfs", "dd if=", ":(){:|:&};:", "shutdown", "reboot", "curl | sh", "wget | sh"]
+        if any(b in command for b in _BLOCKED):
+            return f"Blocked: command contains a disallowed pattern."
+
+        timeout = min(max(5, timeout), 60)
+
+        try:
+            proc = await asyncio.create_subprocess_shell(
+                command,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT,
+                limit=1024 * 256,  # 256 KB output cap
+            )
+            try:
+                stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+            except asyncio.TimeoutError:
+                proc.kill()
+                return f"Command timed out after {timeout}s: {command}"
+
+            output = stdout.decode("utf-8", errors="replace").strip()
+            exit_code = proc.returncode
+
+            if len(output) > 8000:
+                output = output[:8000] + "\n[output truncated]"
+
+            return f"$ {command}\n(exit {exit_code})\n\n{output}" if output else f"$ {command}\n(exit {exit_code})\n(no output)"
+        except Exception as e:
+            return f"Failed to run command: {e}"
+
     # ── Built-in tool: web_search (Serper) ────────────────────
     @staticmethod
     def _web_search_tool_def() -> dict:

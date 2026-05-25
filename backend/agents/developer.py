@@ -98,6 +98,29 @@ After writing all files, output a "## Summary" section:
                     "required": [],
                 },
             },
+            {
+                "name": "delete_file",
+                "description": "Delete a file from the task output directory",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "File path to delete"},
+                    },
+                    "required": ["path"],
+                },
+            },
+            {
+                "name": "move_file",
+                "description": "Rename or move a file within the task output directory",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "src": {"type": "string", "description": "Source file path"},
+                        "dst": {"type": "string", "description": "Destination file path"},
+                    },
+                    "required": ["src", "dst"],
+                },
+            },
         ]
 
     async def tool_read_file(self, path: str) -> str:
@@ -124,3 +147,25 @@ After writing all files, output a "## Summary" section:
         if not files:
             return "No files found."
         return json.dumps(files, indent=2)
+
+    async def tool_delete_file(self, path: str) -> str:
+        import re, os
+        clean = re.sub(r"^output/[0-9a-f\-]+/", "", path.lstrip("/"))
+        local = os.path.join("output", self.output_task_id, clean)
+        if os.path.exists(local):
+            os.remove(local)
+            return f"Deleted {clean}."
+        return f"File not found: {clean}"
+
+    async def tool_move_file(self, src: str, dst: str) -> str:
+        import re, os, shutil
+        clean_src = re.sub(r"^output/[0-9a-f\-]+/", "", src.lstrip("/"))
+        clean_dst = re.sub(r"^output/[0-9a-f\-]+/", "", dst.lstrip("/"))
+        base = os.path.join("output", self.output_task_id)
+        src_path = os.path.join(base, clean_src)
+        dst_path = os.path.join(base, clean_dst)
+        if not os.path.exists(src_path):
+            return f"Source not found: {clean_src}"
+        os.makedirs(os.path.dirname(dst_path), exist_ok=True)
+        shutil.move(src_path, dst_path)
+        return f"Moved {clean_src} → {clean_dst}."
