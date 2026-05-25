@@ -42,12 +42,26 @@ class BaseAgent(ABC):
         self.memory = memory
         self._conversation: list[dict] = []
 
+        # Defaults for optional advanced config
+        self.temperature: float | None = None        # None → API default (1.0)
+        self.max_context_chars: int | None = None    # None → unlimited
+        self.timeout_seconds: int = 300              # 5 min wall-clock per agent
+        self.max_retries: int = 0
+
         # Apply user overrides from agent_configs.json (if any)
         override = _load_agent_override(self.role)
         if override.get("model"):
             self.model = override["model"]
         if override.get("max_tokens"):
-            self.max_tokens = override["max_tokens"]
+            self.max_tokens = int(override["max_tokens"])
+        if override.get("temperature") is not None:
+            self.temperature = float(override["temperature"])
+        if override.get("max_context_chars"):
+            self.max_context_chars = int(override["max_context_chars"])
+        if override.get("timeout_seconds"):
+            self.timeout_seconds = int(override["timeout_seconds"])
+        if override.get("max_retries") is not None:
+            self.max_retries = int(override["max_retries"])
         self._custom_system_prompt: str | None = override.get("system_prompt") or None
 
     @property
@@ -59,10 +73,34 @@ class BaseAgent(ABC):
         return []
 
     async def run(self, user_message: str) -> str:
+        """Run with optional retry wrapper."""
+        last_err: Exception | None = None
+        for attempt in range(max(1, self.max_retries + 1)):
+            try:
+                return await asyncio.wait_for(
+                    self._run_inner(user_message),
+                    timeout=self.timeout_seconds or None,
+                )
+            except asyncio.TimeoutError:
+                raise RuntimeError(f"[{self.role}] timed out after {self.timeout_seconds}s")
+            except Exception as e:
+                last_err = e
+                if attempt < self.max_retries:
+                    wait = 2 ** attempt  # exponential back-off: 1s, 2s, 4s…
+                    print(f"[{self.role}] attempt {attempt+1} failed ({e}), retrying in {wait}s")
+                    await asyncio.sleep(wait)
+        raise last_err  # type: ignore[misc]
+
+    async def _run_inner(self, user_message: str) -> str:
         self._conversation.append({"role": "user", "content": user_message})
 
         # Load short-term context from Redis
         context = await self.memory.get_context(self.role)
+
+        # Apply context character cap if set
+        if self.max_context_chars and context and len(context) > self.max_context_chars:
+            context = context[-self.max_context_chars:]
+
         active_prompt = self._custom_system_prompt or self.system_prompt
 
         # Retrieve long-term memories from Pinecone
@@ -96,6 +134,9 @@ class BaseAgent(ABC):
         _total_output = 0
         start_time = time.time()
 
+        # Build shared API kwargs
+        _temp_kwarg = {"temperature": self.temperature} if self.temperature is not None else {}
+
         # Proper agentic tool-use loop: keep going until stop_reason != "tool_use"
         first_turn = True
         while True:
@@ -107,6 +148,7 @@ class BaseAgent(ABC):
                     max_tokens=self.max_tokens,
                     system=system,
                     messages=self._conversation,
+                    **_temp_kwarg,
                 ) as stream:
                     async for text in stream.text_stream:
                         text_parts_current.append(text)
@@ -127,6 +169,7 @@ class BaseAgent(ABC):
                     system=system,
                     messages=self._conversation,
                     tools=self.tools if self.tools else anthropic.NOT_GIVEN,
+                    **_temp_kwarg,
                 )
                 _total_input += getattr(response.usage, 'input_tokens', 0)
                 _total_output += getattr(response.usage, 'output_tokens', 0)

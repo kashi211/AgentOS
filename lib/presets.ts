@@ -8,6 +8,12 @@ export interface Agent {
   responsibilities: string[];
   systemPrompt: string;
   tools: string[];
+  // Optional advanced config (undefined = use system defaults)
+  maxTokens?: number;        // output token limit (default 4096)
+  temperature?: number;      // 0.0–1.0 (default 1.0)
+  maxContextChars?: number;  // cap on accumulated context passed in (default unlimited)
+  timeoutSeconds?: number;   // per-agent wall-clock timeout (default 300)
+  maxRetries?: number;       // retry count on transient error (default 0)
 }
 
 export interface WorkflowLoop {

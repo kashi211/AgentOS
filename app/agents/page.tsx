@@ -124,6 +124,15 @@ function emptyAgent(): Agent {
   return { id: "", role: "", icon: "", color: "#4f46e5", model: "Claude Sonnet 4.6", description: "", responsibilities: [""], systemPrompt: "", tools: [] };
 }
 
+/* ─── Advanced config defaults ───────────────────────────── */
+const ADV_DEFAULTS = {
+  maxTokens: 4096,
+  temperature: 1.0,
+  maxContextChars: 0,    // 0 = unlimited
+  timeoutSeconds: 300,
+  maxRetries: 0,
+} as const;
+
 function AgentModal({ initial, existingIds, onSave, onClose }: {
   initial: Agent | null; existingIds: string[];
   onSave: (a: Agent) => void; onClose: () => void;
@@ -131,6 +140,7 @@ function AgentModal({ initial, existingIds, onSave, onClose }: {
   const isNew = initial === null;
   const [form, setForm] = useState<Agent>(initial ?? emptyAgent());
   const [error, setError] = useState("");
+  const [advOpen, setAdvOpen] = useState(false);
 
   const set = <K extends keyof Agent>(k: K, v: Agent[K]) => setForm(f => ({ ...f, [k]: v }));
   const autoId = (r: string) => r.toLowerCase().replace(/[^a-z0-9]/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "");
@@ -204,7 +214,128 @@ function AgentModal({ initial, existingIds, onSave, onClose }: {
               );
             })}
           </div>
-        </div>
+          {/* ── Advanced config ── */}
+          <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--card-border)" }}>
+            <button
+              type="button"
+              onClick={() => setAdvOpen(o => !o)}
+              className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold transition-colors"
+              style={{ background: advOpen ? "var(--card)" : "transparent", color: "var(--muted)" }}
+            >
+              <span className="flex items-center gap-2">
+                Advanced config
+                {/* Show dot if any non-default value is set */}
+                {(form.maxTokens && form.maxTokens !== ADV_DEFAULTS.maxTokens) ||
+                 (form.temperature !== undefined && form.temperature !== ADV_DEFAULTS.temperature) ||
+                 (form.maxContextChars && form.maxContextChars > 0) ||
+                 (form.timeoutSeconds && form.timeoutSeconds !== ADV_DEFAULTS.timeoutSeconds) ||
+                 (form.maxRetries && form.maxRetries > 0)
+                  ? <span className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--accent)" }} />
+                  : null}
+              </span>
+              <ChevronDown size={14} style={{ transform: advOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s" }} />
+            </button>
+
+            {advOpen && (
+              <div className="px-4 pb-4 pt-1 space-y-5" style={{ borderTop: "1px solid var(--card-border)" }}>
+
+                {/* Max output tokens */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-semibold" style={{ color: "var(--muted)" }}>Max output tokens</label>
+                    <span className="text-xs font-mono px-2 py-0.5 rounded" style={{ background: "var(--card-border)", color: "var(--foreground)" }}>
+                      {(form.maxTokens ?? ADV_DEFAULTS.maxTokens).toLocaleString()}
+                    </span>
+                  </div>
+                  <input
+                    type="range" min={256} max={16000} step={256}
+                    value={form.maxTokens ?? ADV_DEFAULTS.maxTokens}
+                    onChange={e => setForm(f => ({ ...f, maxTokens: Number(e.target.value) }))}
+                    className="w-full accent-indigo-500"
+                  />
+                  <div className="flex justify-between text-xs mt-0.5" style={{ color: "var(--muted-light)" }}>
+                    <span>256 — quick answers</span><span>4096 — default</span><span>16k — long code</span>
+                  </div>
+                </div>
+
+                {/* Temperature */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-semibold" style={{ color: "var(--muted)" }}>Temperature</label>
+                    <span className="text-xs font-mono px-2 py-0.5 rounded" style={{ background: "var(--card-border)", color: "var(--foreground)" }}>
+                      {(form.temperature ?? ADV_DEFAULTS.temperature).toFixed(1)}
+                    </span>
+                  </div>
+                  <input
+                    type="range" min={0} max={1} step={0.1}
+                    value={form.temperature ?? ADV_DEFAULTS.temperature}
+                    onChange={e => setForm(f => ({ ...f, temperature: Number(e.target.value) }))}
+                    className="w-full accent-indigo-500"
+                  />
+                  <div className="flex justify-between text-xs mt-0.5" style={{ color: "var(--muted-light)" }}>
+                    <span>0.0 — deterministic</span><span>0.5 — balanced</span><span>1.0 — creative (default)</span>
+                  </div>
+                </div>
+
+                {/* Context limit + Timeout side by side */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold mb-1.5" style={{ color: "var(--muted)" }}>
+                      Context limit <span style={{ color: "var(--muted-light)", fontWeight: 400 }}>(chars, 0 = unlimited)</span>
+                    </label>
+                    <input
+                      type="number" min={0} max={200000} step={1000}
+                      className="w-full px-3 py-2 rounded-lg border text-sm font-mono outline-none"
+                      style={{ borderColor: "var(--card-border)", background: "var(--card)", color: "var(--foreground)" }}
+                      placeholder="0 (unlimited)"
+                      value={form.maxContextChars ?? 0}
+                      onChange={e => setForm(f => ({ ...f, maxContextChars: Number(e.target.value) || undefined }))}
+                    />
+                    <p className="text-xs mt-1" style={{ color: "var(--muted-light)" }}>Caps how much accumulated context this agent sees. Useful for focused agents.</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold mb-1.5" style={{ color: "var(--muted)" }}>
+                      Timeout <span style={{ color: "var(--muted-light)", fontWeight: 400 }}>(seconds)</span>
+                    </label>
+                    <input
+                      type="number" min={30} max={3600} step={30}
+                      className="w-full px-3 py-2 rounded-lg border text-sm font-mono outline-none"
+                      style={{ borderColor: "var(--card-border)", background: "var(--card)", color: "var(--foreground)" }}
+                      placeholder="300"
+                      value={form.timeoutSeconds ?? ADV_DEFAULTS.timeoutSeconds}
+                      onChange={e => setForm(f => ({ ...f, timeoutSeconds: Number(e.target.value) || undefined }))}
+                    />
+                    <p className="text-xs mt-1" style={{ color: "var(--muted-light)" }}>Kill this agent if it runs longer than this. Prevents stuck tasks.</p>
+                  </div>
+                </div>
+
+                {/* Max retries */}
+                <div>
+                  <label className="block text-xs font-semibold mb-2" style={{ color: "var(--muted)" }}>Max retries on error</label>
+                  <div className="flex gap-2">
+                    {[0, 1, 2, 3].map(n => (
+                      <button
+                        key={n} type="button"
+                        onClick={() => setForm(f => ({ ...f, maxRetries: n }))}
+                        className="flex-1 py-2 rounded-lg text-sm font-semibold border transition-all"
+                        style={{
+                          background: (form.maxRetries ?? 0) === n ? "var(--accent)" : "var(--card)",
+                          color: (form.maxRetries ?? 0) === n ? "#fff" : "var(--muted)",
+                          borderColor: (form.maxRetries ?? 0) === n ? "var(--accent)" : "var(--card-border)",
+                        }}
+                      >
+                        {n === 0 ? "None" : `${n}×`}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-xs mt-1.5" style={{ color: "var(--muted-light)" }}>Retry with exponential back-off on transient API errors.</p>
+                </div>
+
+              </div>
+            )}
+          </div>
+
+        </div>  {/* end p-6 space-y-5 */}
         <div className="sticky bottom-0 flex justify-end gap-3 px-6 py-4 border-t" style={{ background: "var(--background)", borderColor: "var(--card-border)" }}>
           <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm font-medium" style={{ background: "var(--card)", color: "var(--muted)", border: "1px solid var(--card-border)" }}>Cancel</button>
           <button onClick={() => {
@@ -680,6 +811,10 @@ export default function AgentsPage() {
                             <span className="text-xs px-2 py-0.5 rounded-full font-mono" style={{ background: `${agent.color}10`, color: agent.color }}>{agent.id}</span>
                             <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "var(--accent-light)", color: "var(--accent)", border: "1px solid rgba(79,70,229,0.15)" }}>{agent.model}</span>
                             {agent.tools.length > 0 && <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "rgba(2,132,199,0.08)", color: "#0284c7", border: "1px solid rgba(2,132,199,0.15)" }}>{agent.tools.length} tool{agent.tools.length !== 1 ? "s" : ""}</span>}
+                            {agent.maxTokens && agent.maxTokens !== 4096 && <span className="text-xs px-2 py-0.5 rounded-full font-mono" style={{ background: "rgba(124,58,237,0.08)", color: "#7c3aed", border: "1px solid rgba(124,58,237,0.15)" }}>{agent.maxTokens.toLocaleString()} tok</span>}
+                            {agent.temperature !== undefined && agent.temperature !== 1.0 && <span className="text-xs px-2 py-0.5 rounded-full font-mono" style={{ background: "rgba(5,150,105,0.08)", color: "#059669", border: "1px solid rgba(5,150,105,0.15)" }}>t={agent.temperature.toFixed(1)}</span>}
+                            {agent.timeoutSeconds && agent.timeoutSeconds !== 300 && <span className="text-xs px-2 py-0.5 rounded-full font-mono" style={{ background: "rgba(217,119,6,0.08)", color: "#d97706", border: "1px solid rgba(217,119,6,0.15)" }}>{agent.timeoutSeconds}s</span>}
+                            {agent.maxRetries !== undefined && agent.maxRetries > 0 && <span className="text-xs px-2 py-0.5 rounded-full font-mono" style={{ background: "rgba(220,38,38,0.08)", color: "#dc2626", border: "1px solid rgba(220,38,38,0.15)" }}>{agent.maxRetries}× retry</span>}
                           </div>
                           <p className="text-sm mb-4" style={{ color: "var(--muted)" }}>{agent.description}</p>
                           {agent.responsibilities.length > 0 && (

@@ -45,6 +45,18 @@ class DynamicAgent(BaseAgent):
         self._tool_names: list[str] = agent_def.get("tools", [])
         super().__init__(task_id, memory)
 
+        # Apply optional advanced config from preset agent definition
+        if agent_def.get("maxTokens"):
+            self.max_tokens = int(agent_def["maxTokens"])
+        if agent_def.get("temperature") is not None:
+            self.temperature = float(agent_def["temperature"])
+        if agent_def.get("maxContextChars"):
+            self.max_context_chars = int(agent_def["maxContextChars"])
+        if agent_def.get("timeoutSeconds"):
+            self.timeout_seconds = int(agent_def["timeoutSeconds"])
+        if agent_def.get("maxRetries") is not None:
+            self.max_retries = int(agent_def["maxRetries"])
+
     @property
     def system_prompt(self) -> str:
         base = self._system_prompt_text
