@@ -10,7 +10,7 @@ import {
   PanelLeftClose, PanelLeftOpen, Maximize2,
 } from "lucide-react";
 import Link from "next/link";
-import { BUILTIN_PRESETS, loadCustomPresets, saveCustomPresets, loadActivePresetId, saveActivePresetId, fetchPresetsFromAPI, type Preset } from "@/lib/presets";
+import { BUILTIN_PRESETS, loadCustomPresets, saveCustomPresets, loadActivePresetId, saveActivePresetId, fetchPresetsFromAPI, upsertPresetToAPI, type Preset } from "@/lib/presets";
 
 /* ─── API config ─────────────────────────────────────────── */
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -775,12 +775,16 @@ export default function ProjectsPage() {
     if (active) setSelectedPresetId(active);
     fetchTasks();
     const iv = setInterval(fetchTasks, 5000);
-    fetchPresetsFromAPI().then(remote => {
-      if (!remote.length) return;
+    fetchPresetsFromAPI().then(async remote => {
       const builtinIds = new Set(BUILTIN_PRESETS.map(p => p.id));
       const builtinNames = new Set(BUILTIN_PRESETS.map(p => p.name.toLowerCase()));
-      const local = loadCustomPresets();
-      const customOnly = [...remote, ...local.filter(p => !remote.find((r: Preset) => r.id === p.id))]
+      const local = loadCustomPresets().filter(p => !builtinIds.has(p.id) && !builtinNames.has(p.name.toLowerCase()));
+      // Sync any local-only presets up to the DB so the backend can route them
+      const remoteIds = new Set(remote.map((r: Preset) => r.id));
+      const localOnly = local.filter(p => !remoteIds.has(p.id));
+      await Promise.all(localOnly.map(p => upsertPresetToAPI(p)));
+      // Merge: remote takes precedence, local fills in anything not yet in remote
+      const customOnly = [...remote, ...localOnly]
         .filter(p => !builtinIds.has(p.id) && !builtinNames.has(p.name.toLowerCase()));
       saveCustomPresets(customOnly);
       setAllPresets([...BUILTIN_PRESETS, ...customOnly]);

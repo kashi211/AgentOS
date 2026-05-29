@@ -239,7 +239,20 @@ async def _run_graph(task_id: str, goal: str, output_task_id: str | None = None,
                 from streaming import unregister_stream
                 unregister_stream(task_id)
             return
-        # If preset not found in DB, fall through to software-dev graph
+        else:
+            # Custom preset not found in DB — report error rather than silently using software-dev
+            print(f"[_run_graph] custom preset '{preset_id}' not found in DB for task {task_id}")
+            await broadcast(task_id, {"type": "error", "agent": "system", "content": f"Custom preset '{preset_id}' not found. Please re-save your preset and try again."})
+            pool = get_pool()
+            async with pool.acquire() as conn:
+                await conn.execute(
+                    "UPDATE agent_os_tasks SET status='failed', updated_at=NOW() WHERE id=$1",
+                    uuid.UUID(task_id),
+                )
+            _running_tasks.pop(task_id, None)
+            from streaming import unregister_stream
+            unregister_stream(task_id)
+            return
 
     graph = _get_graph(preset_id)
 
