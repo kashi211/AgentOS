@@ -22,7 +22,7 @@ const phases: Phase[] = [
     phase: 1,
     title: "Foundation",
     subtitle: "Project setup, routing, UI shell",
-    color: "#1d4ed8",
+    color: "#0084c6",
     status: "done",
     tasks: [
       { name: "Next.js 15 App Router + TypeScript + Tailwind", status: "done" },
@@ -36,7 +36,7 @@ const phases: Phase[] = [
     phase: 2,
     title: "Agent Engine",
     subtitle: "Core multi-agent system with LangGraph",
-    color: "#1e40af",
+    color: "#006ba3",
     status: "done",
     tasks: [
       { name: "BaseAgent: system prompt, tool-use loop, memory integration", status: "done" },
@@ -198,8 +198,8 @@ export default function PlanPage() {
         <div className="flex items-center gap-6 mb-4">
           {[
             { label: "Phases complete", value: `${donePhases}/${phases.length}`, color: "#059669" },
-            { label: "Tasks complete", value: `${doneTasks}/${totalTasks}`, color: "#1d4ed8" },
-            { label: "Agents built", value: "25+", color: "#1e40af" },
+            { label: "Tasks complete", value: `${doneTasks}/${totalTasks}`, color: "#0084c6" },
+            { label: "Agents built", value: "25+", color: "#006ba3" },
           ].map(({ label, value, color }) => (
             <div key={label}>
               <p className="text-xl font-bold" style={{ color }}>{value}</p>

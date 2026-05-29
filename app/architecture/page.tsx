@@ -3,7 +3,7 @@ import { Server, Globe, Database, Cpu, ArrowRight, Zap, MessageSquare, BarChart3
 const techStack = [
   {
     layer: "Frontend",
-    color: "#1d4ed8",
+    color: "#0084c6",
     icon: Globe,
     items: [
       { name: "Next.js 15 (App Router)", desc: "Pages, routing, SSR" },
@@ -15,7 +15,7 @@ const techStack = [
   },
   {
     layer: "Backend",
-    color: "#1e40af",
+    color: "#006ba3",
     icon: Server,
     items: [
       { name: "FastAPI (Python 3.13)", desc: "REST + WebSocket; asyncio task registry for cancellation" },
@@ -81,7 +81,7 @@ const pipelines = [
   {
     id: "research",
     label: "Research & Intelligence",
-    color: "#1e40af",
+    color: "#006ba3",
     agents: ["Researcher", "Fact Checker", "Devil's Advocate", "Research Editor"],
     loop: "Fact Checker ↺ Researcher (max 2 revisions)",
     detail: "Comprehensive brief built, fact-checked, challenged for counterarguments, synthesized into final research report.",
@@ -136,7 +136,7 @@ const behaviours = [
   },
   {
     icon: Search,
-    color: "#1d4ed8",
+    color: "#0084c6",
     title: "Live web search injection",
     desc: "A checkbox next to the Run button triggers a Serper API call before any agent starts. Top organic + news results are formatted as a '## Current Web Context' section prepended to the goal. The web_search flag is stored in the DB so startup recovery re-runs include it.",
   },
@@ -160,7 +160,7 @@ const behaviours = [
   },
   {
     icon: Brain,
-    color: "#1e40af",
+    color: "#006ba3",
     title: "Long-term semantic memory",
     desc: "After each agent run, output is upserted into Pinecone using multilingual-e5-large (1024-dim, hosted inference). At the start of a new run, the top-3 semantically similar memories across all past tasks are fetched and prepended as context.",
   },
@@ -295,7 +295,7 @@ export default function ArchitecturePage() {
         <h2 className="text-sm font-semibold uppercase tracking-widest mb-4" style={{ color: "var(--muted-light)" }}>API Surface</h2>
         <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--card-border)" }}>
           {apiRoutes.map(({ method, path, desc }, i) => {
-            const methodColor: Record<string, string> = { POST: "#1d4ed8", GET: "#059669", WS: "#0284c7", PUT: "#d97706", DELETE: "#dc2626" };
+            const methodColor: Record<string, string> = { POST: "#0084c6", GET: "#059669", WS: "#0284c7", PUT: "#d97706", DELETE: "#dc2626" };
             const color = methodColor[method] ?? "#64748b";
             return (
               <div key={path} className="flex items-start gap-3 px-4 py-3" style={{ borderTop: i > 0 ? "1px solid var(--card-border)" : "none", background: "var(--card)" }}>
@@ -314,14 +314,14 @@ export default function ArchitecturePage() {
         <div className="rounded-xl p-5" style={{ border: "1px solid var(--card-border)", background: "var(--card)" }}>
           <div className="space-y-3">
             {[
-              { step: "1", text: "User selects a preset (built-in or custom), types goal, optionally checks 'Web search', clicks Run.", color: "#1d4ed8" },
-              { step: "2", text: "MCQ modal opens: Haiku generates 3 goal-specific questions (never platform/tech). User picks answers or skips.", color: "#1e40af" },
+              { step: "1", text: "User selects a preset (built-in or custom), types goal, optionally checks 'Web search', clicks Run.", color: "#0084c6" },
+              { step: "2", text: "MCQ modal opens: Haiku generates 3 goal-specific questions (never platform/tech). User picks answers or skips.", color: "#006ba3" },
               { step: "3", text: "Answers appended as structured context → POST /tasks/ with enriched goal, preset_id, and web_search flag.", color: "#0284c7" },
               { step: "4", text: "Backend saves task to DB (including web_search). If web_search=true, Serper API fetches top results and prepends as '## Current Web Context' to the goal.", color: "#059669" },
               { step: "5", text: "preset_id checked: built-in IDs route to dedicated LangGraph graph; custom IDs load preset JSON from DB and run through DynamicAgent orchestrator.", color: "#d97706" },
               { step: "6", text: "Before each agent run: top-3 semantically similar Pinecone memories fetched and prepended to context.", color: "#ec4899" },
               { step: "7", text: "Each agent node: saves agent_input → streams tokens to WS via messages.stream() → saves agent_output → emits preview event. Independent nodes run via asyncio.gather.", color: "#dc2626" },
-              { step: "8", text: "QA/reviewer evaluates: pass → advance; fail → loop back (up to max_revisions). User can POST /tasks/{id}/cancel at any time.", color: "#1e40af" },
+              { step: "8", text: "QA/reviewer evaluates: pass → advance; fail → loop back (up to max_revisions). User can POST /tasks/{id}/cancel at any time.", color: "#006ba3" },
               { step: "9", text: "After each run: agent output upserted into Pinecone for future cross-task retrieval. Generated files written to Cloudflare R2.", color: "#059669" },
               { step: "10", text: "On completion: frontend fetches /tasks/{id}/summary; Haiku summarises in 2-3 sentences (cached). Pipeline graph shows every agent's full input/output with turn navigation.", color: "#64748b" },
               { step: "11", text: "On server restart: worker.py finds tasks stuck in non-terminal states, wipes their partial messages, and re-runs them from scratch automatically.", color: "#0891b2" },

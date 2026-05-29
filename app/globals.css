@@ -5,9 +5,9 @@
   --foreground: #1c1917;
   --card: #ffffff;
   --card-border: #e7e5e4;
-  --accent: #1d4ed8;
-  --accent-light: rgba(29, 78, 216, 0.08);
-  --accent-mid: rgba(29, 78, 216, 0.15);
+  --accent: #0084c6;
+  --accent-light: rgba(0, 132, 198, 0.08);
+  --accent-mid: rgba(0, 132, 198, 0.15);
   --muted: #78716c;
   --muted-light: #a8a29e;
   --success: #16a34a;
@@ -41,7 +41,7 @@ body {
 ::-webkit-scrollbar-thumb { background: var(--card-border); border-radius: 3px; }
 
 .gradient-text {
-  background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 50%, #0ea5e9 100%);
+  background: linear-gradient(135deg, #006ba3 0%, #0084c6 50%, #0ea5e9 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -58,21 +58,21 @@ body {
   transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
 }
 .card-hover:hover {
-  border-color: rgba(29, 78, 216, 0.35);
-  box-shadow: 0 4px 16px rgba(29, 78, 216, 0.08), 0 1px 3px rgba(0,0,0,0.04);
+  border-color: rgba(0, 132, 198, 0.35);
+  box-shadow: 0 4px 16px rgba(0, 132, 198, 0.08), 0 1px 3px rgba(0,0,0,0.04);
   transform: translateY(-1px);
 }
 
 .grid-bg {
   background-image:
-    linear-gradient(rgba(29, 78, 216, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(29, 78, 216, 0.04) 1px, transparent 1px);
+    linear-gradient(rgba(0, 132, 198, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 132, 198, 0.04) 1px, transparent 1px);
   background-size: 40px 40px;
 }
 
 .glow-border {
-  border-color: rgba(29, 78, 216, 0.4);
-  box-shadow: 0 0 16px rgba(29, 78, 216, 0.12);
+  border-color: rgba(0, 132, 198, 0.4);
+  box-shadow: 0 0 16px rgba(0, 132, 198, 0.12);
 }
 
 @keyframes pulse-dot {

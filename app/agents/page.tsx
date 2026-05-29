@@ -87,17 +87,17 @@ const TOOL_CATALOGUE: ToolDef[] = [
   { id: "web_search",           label: "Web Search",          desc: "Search Google via Serper for current info, news, prices",        icon: Search,        color: "#0284c7", group: "Web" },
   { id: "fetch_url",            label: "Fetch URL",           desc: "Download and read full content of any public webpage or doc",     icon: Link,          color: "#0284c7", group: "Web" },
   // Files
-  { id: "read_file",            label: "Read File",           desc: "Read an existing file from the project output directory",         icon: FileSearch,    color: "#1e40af", group: "Files" },
-  { id: "write_file",           label: "Write File",          desc: "Create or overwrite a file in the project output directory",      icon: FileOutput,    color: "#1e40af", group: "Files" },
-  { id: "list_files",           label: "List Files",          desc: "List all files written so far for this task",                     icon: List,          color: "#1e40af", group: "Files" },
-  { id: "delete_file",          label: "Delete File",         desc: "Remove a file from the project output directory",                 icon: FileX,         color: "#1e40af", group: "Files" },
-  { id: "move_file",            label: "Move / Rename File",  desc: "Move or rename a file within the project output directory",       icon: FolderSymlink, color: "#1e40af", group: "Files" },
+  { id: "read_file",            label: "Read File",           desc: "Read an existing file from the project output directory",         icon: FileSearch,    color: "#006ba3", group: "Files" },
+  { id: "write_file",           label: "Write File",          desc: "Create or overwrite a file in the project output directory",      icon: FileOutput,    color: "#006ba3", group: "Files" },
+  { id: "list_files",           label: "List Files",          desc: "List all files written so far for this task",                     icon: List,          color: "#006ba3", group: "Files" },
+  { id: "delete_file",          label: "Delete File",         desc: "Remove a file from the project output directory",                 icon: FileX,         color: "#006ba3", group: "Files" },
+  { id: "move_file",            label: "Move / Rename File",  desc: "Move or rename a file within the project output directory",       icon: FolderSymlink, color: "#006ba3", group: "Files" },
   // System
   { id: "run_terminal_command", label: "Terminal",            desc: "Run shell commands — npm install, pip, curl, git, tests, etc.",   icon: Terminal,      color: "#059669", group: "System" },
 ];
 const CATEGORIES = ["All", "Engineering", "Research", "Finance", "Legal", "Marketing"];
 const CATEGORY_COLORS: Record<string, string> = {
-  Engineering: "#0284c7", Research: "#1e40af", Finance: "#059669",
+  Engineering: "#0284c7", Research: "#006ba3", Finance: "#059669",
   Legal: "#64748b", Marketing: "#ec4899", Custom: "#64748b",
 };
 
@@ -121,7 +121,7 @@ function saveWorkflow(w: Workflow) { localStorage.setItem("agentos_workflow", JS
 /* ─── Agent modal ────────────────────────────────────────── */
 
 function emptyAgent(): Agent {
-  return { id: "", role: "", icon: "", color: "#1d4ed8", model: "Claude Sonnet 4.6", description: "", responsibilities: [""], systemPrompt: "", tools: [] };
+  return { id: "", role: "", icon: "", color: "#0084c6", model: "Claude Sonnet 4.6", description: "", responsibilities: [""], systemPrompt: "", tools: [] };
 }
 
 /* ─── Advanced config defaults ───────────────────────────── */
@@ -779,7 +779,7 @@ export default function AgentsPage() {
             <div>
               {/* Model legend */}
               <div className="card p-4 mb-6 flex gap-6 flex-wrap">
-                {[{ model: "Claude Opus 4.7", color: "#1d4ed8", desc: "Heavy reasoning & code" }, { model: "Claude Sonnet 4.6", color: "#059669", desc: "Fast, cost-efficient" }, { model: "Claude Haiku 4.5", color: "#d97706", desc: "Ultra-fast, lightweight" }].map(m => (
+                {[{ model: "Claude Opus 4.7", color: "#0084c6", desc: "Heavy reasoning & code" }, { model: "Claude Sonnet 4.6", color: "#059669", desc: "Fast, cost-efficient" }, { model: "Claude Haiku 4.5", color: "#d97706", desc: "Ultra-fast, lightweight" }].map(m => (
                   <div key={m.model} className="flex items-center gap-2">
                     <div className="w-2.5 h-2.5 rounded-full" style={{ background: m.color }} />
                     <span className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{m.model}</span>
@@ -809,9 +809,9 @@ export default function AgentsPage() {
                           <div className="flex items-center gap-3 mb-1 flex-wrap">
                             <h2 className="text-lg font-bold" style={{ color: "var(--foreground)" }}>{agent.role}</h2>
                             <span className="text-xs px-2 py-0.5 rounded-full font-mono" style={{ background: `${agent.color}10`, color: agent.color }}>{agent.id}</span>
-                            <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "var(--accent-light)", color: "var(--accent)", border: "1px solid rgba(29,78,216,0.15)" }}>{agent.model}</span>
+                            <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "var(--accent-light)", color: "var(--accent)", border: "1px solid rgba(0,132,198,0.15)" }}>{agent.model}</span>
                             {agent.tools.length > 0 && <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "rgba(2,132,199,0.08)", color: "#0284c7", border: "1px solid rgba(2,132,199,0.15)" }}>{agent.tools.length} tool{agent.tools.length !== 1 ? "s" : ""}</span>}
-                            {agent.maxTokens && agent.maxTokens !== 4096 && <span className="text-xs px-2 py-0.5 rounded-full font-mono" style={{ background: "rgba(29,78,216,0.08)", color: "#1e40af", border: "1px solid rgba(29,78,216,0.15)" }}>{agent.maxTokens.toLocaleString()} tok</span>}
+                            {agent.maxTokens && agent.maxTokens !== 4096 && <span className="text-xs px-2 py-0.5 rounded-full font-mono" style={{ background: "rgba(0,132,198,0.08)", color: "#006ba3", border: "1px solid rgba(0,132,198,0.15)" }}>{agent.maxTokens.toLocaleString()} tok</span>}
                             {agent.temperature !== undefined && agent.temperature !== 1.0 && <span className="text-xs px-2 py-0.5 rounded-full font-mono" style={{ background: "rgba(5,150,105,0.08)", color: "#059669", border: "1px solid rgba(5,150,105,0.15)" }}>t={agent.temperature.toFixed(1)}</span>}
                             {agent.timeoutSeconds && agent.timeoutSeconds !== 300 && <span className="text-xs px-2 py-0.5 rounded-full font-mono" style={{ background: "rgba(217,119,6,0.08)", color: "#d97706", border: "1px solid rgba(217,119,6,0.15)" }}>{agent.timeoutSeconds}s</span>}
                             {agent.maxRetries !== undefined && agent.maxRetries > 0 && <span className="text-xs px-2 py-0.5 rounded-full font-mono" style={{ background: "rgba(220,38,38,0.08)", color: "#dc2626", border: "1px solid rgba(220,38,38,0.15)" }}>{agent.maxRetries}× retry</span>}
