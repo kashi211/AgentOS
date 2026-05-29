@@ -157,7 +157,7 @@ async def generate_questions(body: QuestionsRequest) -> QuestionsResponse:
             if raw.startswith("json"):
                 raw = raw[4:]
         data = json.loads(raw)
-        return QuestionsResponse(questions=[Question(**q) for q in data["questions")])
+        return QuestionsResponse(questions=[Question(**q) for q in data["questions"]])
     except Exception as e:
         # Fallback: return empty so frontend skips the modal gracefully
         print(f"[questions] generation failed: {e}")
