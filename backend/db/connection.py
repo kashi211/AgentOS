@@ -94,6 +94,50 @@ CREATE TABLE IF NOT EXISTS users (
     created_at    TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Defensive migrations: add any column that may be missing on existing DBs
+-- (CREATE TABLE IF NOT EXISTS skips re-creation, so columns added later need explicit migrations)
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='tasks' AND column_name='goal') THEN
+    ALTER TABLE tasks ADD COLUMN goal TEXT NOT NULL DEFAULT '';
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='tasks' AND column_name='status') THEN
+    ALTER TABLE tasks ADD COLUMN status VARCHAR(50) DEFAULT 'pending';
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='tasks' AND column_name='result') THEN
+    ALTER TABLE tasks ADD COLUMN result TEXT;
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='tasks' AND column_name='updated_at') THEN
+    ALTER TABLE tasks ADD COLUMN updated_at TIMESTAMPTZ DEFAULT NOW();
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='subtasks' AND column_name='result') THEN
+    ALTER TABLE subtasks ADD COLUMN result TEXT;
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='subtasks' AND column_name='revision_count') THEN
+    ALTER TABLE subtasks ADD COLUMN revision_count INT DEFAULT 0;
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='subtasks' AND column_name='updated_at') THEN
+    ALTER TABLE subtasks ADD COLUMN updated_at TIMESTAMPTZ DEFAULT NOW();
+  END IF;
+END $$;
+
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='tasks' AND column_name='user_id') THEN
     ALTER TABLE tasks ADD COLUMN user_id UUID REFERENCES users(id);
