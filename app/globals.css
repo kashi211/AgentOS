@@ -1,16 +1,16 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  --background: #fafaf9;
+  --foreground: #1c1917;
   --card: #ffffff;
-  --card-border: #e2e8f0;
-  --accent: #4f46e5;
-  --accent-light: rgba(79, 70, 229, 0.08);
-  --accent-mid: rgba(79, 70, 229, 0.15);
-  --muted: #64748b;
-  --muted-light: #94a3b8;
-  --success: #059669;
+  --card-border: #e7e5e4;
+  --accent: #f97316;
+  --accent-light: rgba(249, 115, 22, 0.08);
+  --accent-mid: rgba(249, 115, 22, 0.15);
+  --muted: #78716c;
+  --muted-light: #a8a29e;
+  --success: #16a34a;
   --warning: #d97706;
   --danger: #dc2626;
 }
@@ -41,7 +41,7 @@ body {
 ::-webkit-scrollbar-thumb { background: var(--card-border); border-radius: 3px; }
 
 .gradient-text {
-  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #0ea5e9 100%);
+  background: linear-gradient(135deg, #f97316 0%, #ea580c 50%, #facc15 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -58,21 +58,21 @@ body {
   transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
 }
 .card-hover:hover {
-  border-color: rgba(79, 70, 229, 0.35);
-  box-shadow: 0 4px 16px rgba(79, 70, 229, 0.08), 0 1px 3px rgba(0,0,0,0.04);
+  border-color: rgba(249, 115, 22, 0.35);
+  box-shadow: 0 4px 16px rgba(249, 115, 22, 0.08), 0 1px 3px rgba(0,0,0,0.04);
   transform: translateY(-1px);
 }
 
 .grid-bg {
   background-image:
-    linear-gradient(rgba(79, 70, 229, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(79, 70, 229, 0.04) 1px, transparent 1px);
+    linear-gradient(rgba(249, 115, 22, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(249, 115, 22, 0.04) 1px, transparent 1px);
   background-size: 40px 40px;
 }
 
 .glow-border {
-  border-color: rgba(79, 70, 229, 0.4);
-  box-shadow: 0 0 16px rgba(79, 70, 229, 0.12);
+  border-color: rgba(249, 115, 22, 0.4);
+  box-shadow: 0 0 16px rgba(249, 115, 22, 0.12);
 }
 
 @keyframes pulse-dot {

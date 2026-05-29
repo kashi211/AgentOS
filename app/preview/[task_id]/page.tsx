@@ -26,7 +26,7 @@ interface EditThread {
 }
 
 const agentColor: Record<string, string> = {
-  ceo: "#4f46e5", planner: "#7c3aed", developer: "#0284c7",
+  ceo: "#f97316", planner: "#ea580c", developer: "#0284c7",
   qa: "#059669", writer: "#d97706", system: "#64748b",
 };
 const agentIcon: Record<string, string> = {
@@ -263,7 +263,7 @@ export default function ProjectPage() {
         <button
           onClick={() => setTheater(t => !t)}
           title={theater ? "Exit theater mode" : "Theater mode — hide sidebars"}
-          style={{ color: theater ? "#a5b4fc" : "#94a3b8", display: "flex", padding: 6, borderRadius: 6, border: `1px solid ${theater ? "#4f46e5" : "#1e293b"}`, cursor: "pointer", background: theater ? "rgba(79,70,229,0.15)" : "transparent" }}
+          style={{ color: theater ? "#fdba74" : "#94a3b8", display: "flex", padding: 6, borderRadius: 6, border: `1px solid ${theater ? "#f97316" : "#1e293b"}`, cursor: "pointer", background: theater ? "rgba(249,115,22,0.15)" : "transparent" }}
         >
           {theater ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
         </button>
@@ -289,7 +289,7 @@ export default function ProjectPage() {
           </div>
           <div style={{ flex: 1, overflowY: "auto" }}>
             {files.map((f) => (
-              <button key={f.path} onClick={() => selectFile(f.path)} style={{ width: "100%", textAlign: "left", padding: "9px 14px", display: "flex", alignItems: "center", gap: 8, cursor: "pointer", border: "none", borderLeft: selectedFile === f.path ? "2px solid #4f46e5" : "2px solid transparent", background: selectedFile === f.path ? "rgba(79,70,229,0.12)" : "transparent" }}>
+              <button key={f.path} onClick={() => selectFile(f.path)} style={{ width: "100%", textAlign: "left", padding: "9px 14px", display: "flex", alignItems: "center", gap: 8, cursor: "pointer", border: "none", borderLeft: selectedFile === f.path ? "2px solid #f97316" : "2px solid transparent", background: selectedFile === f.path ? "rgba(249,115,22,0.12)" : "transparent" }}>
                 <span style={{ fontSize: 13 }}>{fileIcon(f.path)}</span>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ color: selectedFile === f.path ? "#a5b4fc" : "#94a3b8", fontSize: 12, fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: selectedFile === f.path ? 600 : 400 }}>{f.path}</div>
@@ -327,7 +327,7 @@ export default function ProjectPage() {
             </div>
           ) : loadingContent ? (
             <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Loader2 size={20} style={{ color: "#4f46e5", animation: "spin 0.8s linear infinite" }} />
+              <Loader2 size={20} style={{ color: "#f97316", animation: "spin 0.8s linear infinite" }} />
             </div>
           ) : mode === "demo" && hasDemo ? (
             <iframe
@@ -346,7 +346,7 @@ export default function ProjectPage() {
                 <button
                   onClick={saveFile}
                   disabled={!isDirty || saving}
-                  style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 12px", borderRadius: 6, border: "none", cursor: isDirty && !saving ? "pointer" : "default", background: isDirty && !saving ? "#4f46e5" : "#1e293b", color: isDirty && !saving ? "#fff" : "#475569", fontSize: 12, fontWeight: 600 }}
+                  style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 12px", borderRadius: 6, border: "none", cursor: isDirty && !saving ? "pointer" : "default", background: isDirty && !saving ? "#f97316" : "#1e293b", color: isDirty && !saving ? "#fff" : "#475569", fontSize: 12, fontWeight: 600 }}
                 >
                   {saving ? <Loader2 size={12} style={{ animation: "spin 0.8s linear infinite" }} /> : <Save size={12} />}
                   {saving ? "Saving…" : "Save"}
@@ -384,7 +384,7 @@ export default function ProjectPage() {
               <div key={thread.id}>
                 {/* User message */}
                 <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
-                  <div style={{ background: "#4f46e5", color: "#fff", borderRadius: "12px 12px 4px 12px", padding: "8px 12px", fontSize: 13, maxWidth: "85%", lineHeight: 1.5 }}>
+                  <div style={{ background: "#f97316", color: "#fff", borderRadius: "12px 12px 4px 12px", padding: "8px 12px", fontSize: 13, maxWidth: "85%", lineHeight: 1.5 }}>
                     {thread.message}
                   </div>
                 </div>
@@ -421,7 +421,7 @@ export default function ProjectPage() {
                   })}
                   {!thread.done && !thread.failed && thread.events.length > 0 && (
                     <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 8px" }}>
-                      <Loader2 size={12} style={{ color: "#4f46e5", animation: "spin 0.8s linear infinite" }} />
+                      <Loader2 size={12} style={{ color: "#f97316", animation: "spin 0.8s linear infinite" }} />
                       <span style={{ color: "#334155", fontSize: 11 }}>agents working…</span>
                     </div>
                   )}
@@ -460,7 +460,7 @@ export default function ProjectPage() {
               <button
                 onClick={sendEdit}
                 disabled={!editInput.trim() || editing}
-                style={{ width: 36, height: 36, borderRadius: 10, background: editing || !editInput.trim() ? "#1e293b" : "#4f46e5", border: "none", cursor: editing || !editInput.trim() ? "default" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
+                style={{ width: 36, height: 36, borderRadius: 10, background: editing || !editInput.trim() ? "#1e293b" : "#f97316", border: "none", cursor: editing || !editInput.trim() ? "default" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
               >
                 {editing ? <Loader2 size={15} style={{ color: "#475569", animation: "spin 0.8s linear infinite" }} /> : <Send size={15} style={{ color: "#fff" }} />}
               </button>

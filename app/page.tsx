@@ -13,8 +13,8 @@ import {
 } from "lucide-react";
 
 const agents: { role: string; icon: LucideIcon; color: string; desc: string }[] = [
-  { role: "CEO",       icon: Crown,   color: "#4f46e5", desc: "Strategy & delegation" },
-  { role: "Planner",   icon: Map,     color: "#7c3aed", desc: "Task decomposition" },
+  { role: "CEO",       icon: Crown,   color: "#f97316", desc: "Strategy & delegation" },
+  { role: "Planner",   icon: Map,     color: "#ea580c", desc: "Task decomposition" },
   { role: "Developer", icon: Code2,   color: "#0284c7", desc: "Code generation" },
   { role: "QA",        icon: Bug,     color: "#059669", desc: "Review & validation" },
   { role: "Writer",    icon: PenLine, color: "#d97706", desc: "Docs & reports" },
@@ -127,9 +127,9 @@ export default function Home() {
           <div className="card p-6 mb-10">
             <div className="flex items-center gap-2 flex-wrap">
               {[
-                { label: "User Goal", color: "#4f46e5" },
-                { label: "CEO Plans", color: "#7c3aed" },
-                { label: "Tasks Split", color: "#9333ea" },
+                { label: "User Goal", color: "#f97316" },
+                { label: "CEO Plans", color: "#ea580c" },
+                { label: "Tasks Split", color: "#d97706" },
                 { label: "Agents Execute", color: "#0284c7" },
                 { label: "QA Reviews", color: "#059669" },
                 { label: "Delivery", color: "#d97706" },
