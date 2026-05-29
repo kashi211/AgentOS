@@ -369,6 +369,10 @@ export function loadActivePresetId(): string | null {
   return localStorage.getItem(STORAGE_ACTIVE);
 }
 
+export function saveActivePresetId(id: string): void {
+  localStorage.setItem(STORAGE_ACTIVE, id);
+}
+
 export function activatePreset(preset: Preset): void {
   localStorage.setItem(STORAGE_AGENTS, JSON.stringify(preset.agents));
   localStorage.setItem(STORAGE_WORKFLOW, JSON.stringify(preset.workflow));

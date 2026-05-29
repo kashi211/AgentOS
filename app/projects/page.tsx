@@ -10,7 +10,7 @@ import {
   PanelLeftClose, PanelLeftOpen, Maximize2,
 } from "lucide-react";
 import Link from "next/link";
-import { BUILTIN_PRESETS, loadCustomPresets, saveCustomPresets, loadActivePresetId, fetchPresetsFromAPI, type Preset } from "@/lib/presets";
+import { BUILTIN_PRESETS, loadCustomPresets, saveCustomPresets, loadActivePresetId, saveActivePresetId, fetchPresetsFromAPI, type Preset } from "@/lib/presets";
 
 /* ─── API config ─────────────────────────────────────────── */
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -721,7 +721,7 @@ function PresetSelector({ presets, selected, onSelect }: { presets: Preset[]; se
         const Icon = PRESET_ICONS[p.id] ?? Layers;
         const active = p.id === selected;
         return (
-          <button key={p.id} onClick={() => onSelect(p.id)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all" style={{ background: active ? p.categoryColor : "var(--card)", color: active ? "#fff" : "var(--muted)", border: active ? "none" : "1px solid var(--card-border)", boxShadow: active ? `0 2px 8px ${p.categoryColor}40` : "none" }}>
+          <button key={p.id} onClick={() => { onSelect(p.id); saveActivePresetId(p.id); }} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all" style={{ background: active ? p.categoryColor : "var(--card)", color: active ? "#fff" : "var(--muted)", border: active ? "none" : "1px solid var(--card-border)", boxShadow: active ? `0 2px 8px ${p.categoryColor}40` : "none" }}>
             <Icon size={12}/>{p.name}
           </button>
         );
