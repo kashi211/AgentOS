@@ -27,10 +27,10 @@ async def rerun_task(task_id: str, goal: str, preset_id: str | None, web_search:
     pool = get_pool()
     async with pool.acquire() as conn:
         # Wipe partial output so we don't show duplicate messages
-        await conn.execute("DELETE FROM messages WHERE task_id=$1", uuid.UUID(task_id))
-        await conn.execute("DELETE FROM subtasks WHERE task_id=$1", uuid.UUID(task_id))
+        await conn.execute("DELETE FROM agentos_messages WHERE task_id=$1", uuid.UUID(task_id))
+        await conn.execute("DELETE FROM agentos_subtasks WHERE task_id=$1", uuid.UUID(task_id))
         await conn.execute(
-            "UPDATE tasks SET status='pending', result=NULL, updated_at=NOW() WHERE id=$1",
+            "UPDATE agentos_tasks SET status='pending', result=NULL, updated_at=NOW() WHERE id=$1",
             uuid.UUID(task_id),
         )
 
@@ -54,7 +54,7 @@ async def recover_on_startup() -> None:
         stuck = await conn.fetch(
             """
             SELECT id, goal, preset_id, COALESCE(web_search, FALSE) AS web_search
-            FROM tasks
+            FROM agentos_tasks
             WHERE status IN ('pending', 'planning', 'executing', 'reviewing')
             ORDER BY created_at
             """

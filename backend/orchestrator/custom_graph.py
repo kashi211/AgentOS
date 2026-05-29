@@ -11,7 +11,7 @@ import uuid
 import asyncio
 
 from agents.base import BaseAgent, SONNET, OPUS, _HAIKU, client
-from memory.store import MemoryStore
+from agentos_memory.store import MemoryStore
 from db.connection import get_pool
 from routes.ws import broadcast
 
@@ -284,7 +284,7 @@ async def fetch_preset_from_db(preset_id: str) -> dict | None:
     pool = get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT data FROM custom_presets WHERE id=$1", preset_id
+            "SELECT data FROM agentos_custom_presets WHERE id=$1", preset_id
         )
     if not row:
         return None
@@ -297,7 +297,7 @@ async def _save_message(task_id: str, agent_role: str, msg_type: str, content: s
     pool = get_pool()
     async with pool.acquire() as conn:
         await conn.execute(
-            "INSERT INTO messages (task_id, agent_role, type, content) VALUES ($1, $2, $3, $4)",
+            "INSERT INTO agentos_messages (task_id, agent_role, type, content) VALUES ($1, $2, $3, $4)",
             uuid.UUID(task_id), agent_role, msg_type, content,
         )
 
@@ -306,7 +306,7 @@ async def _update_task_status(task_id: str, status: str):
     pool = get_pool()
     async with pool.acquire() as conn:
         await conn.execute(
-            "UPDATE tasks SET status=$1, updated_at=NOW() WHERE id=$2",
+            "UPDATE agentos_tasks SET status=$1, updated_at=NOW() WHERE id=$2",
             status, uuid.UUID(task_id),
         )
 
@@ -315,6 +315,6 @@ async def _save_task_result(task_id: str, result: str):
     pool = get_pool()
     async with pool.acquire() as conn:
         await conn.execute(
-            "UPDATE tasks SET result=$1, status='done', updated_at=NOW() WHERE id=$2",
+            "UPDATE agentos_tasks SET result=$1, status='done', updated_at=NOW() WHERE id=$2",
             result, uuid.UUID(task_id),
         )

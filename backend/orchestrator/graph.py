@@ -14,7 +14,7 @@ from agents.developer import DeveloperAgent
 from agents.worker import WorkerAgent
 from agents.qa import QAAgent
 from agents.writer import WriterAgent
-from memory.store import MemoryStore
+from agentos_memory.store import MemoryStore
 from db.connection import get_pool
 from routes.ws import broadcast
 
@@ -296,7 +296,7 @@ async def _save_message(task_id: str, agent_role: str, msg_type: str, content: s
     pool = get_pool()
     async with pool.acquire() as conn:
         await conn.execute(
-            "INSERT INTO messages (task_id, agent_role, type, content) VALUES ($1, $2, $3, $4)",
+            "INSERT INTO agentos_messages (task_id, agent_role, type, content) VALUES ($1, $2, $3, $4)",
             uuid.UUID(task_id), agent_role, msg_type, content,
         )
 
@@ -305,7 +305,7 @@ async def _save_subtask(task_id: str, agent_role: str, description: str, status:
     pool = get_pool()
     async with pool.acquire() as conn:
         await conn.execute(
-            "INSERT INTO subtasks (task_id, agent_role, description, status, result) VALUES ($1, $2, $3, $4, $5)",
+            "INSERT INTO agentos_subtasks (task_id, agent_role, description, status, result) VALUES ($1, $2, $3, $4, $5)",
             uuid.UUID(task_id), agent_role, description, status, result,
         )
 
@@ -314,7 +314,7 @@ async def _update_task_status(task_id: str, status: str):
     pool = get_pool()
     async with pool.acquire() as conn:
         await conn.execute(
-            "UPDATE tasks SET status=$1, updated_at=NOW() WHERE id=$2",
+            "UPDATE agentos_tasks SET status=$1, updated_at=NOW() WHERE id=$2",
             status, uuid.UUID(task_id),
         )
 
@@ -323,6 +323,6 @@ async def _save_task_result(task_id: str, result: str):
     pool = get_pool()
     async with pool.acquire() as conn:
         await conn.execute(
-            "UPDATE tasks SET result=$1, status='done', updated_at=NOW() WHERE id=$2",
+            "UPDATE agentos_tasks SET result=$1, status='done', updated_at=NOW() WHERE id=$2",
             result, uuid.UUID(task_id),
         )

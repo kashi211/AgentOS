@@ -11,7 +11,7 @@ from agents.content_writer import ContentWriterAgent
 from agents.seo_agent import SEOAgent
 from agents.brand_voice import BrandVoiceAgent
 from agents.content_editor import ContentEditorAgent
-from memory.store import MemoryStore
+from agentos_memory.store import MemoryStore
 from db.connection import get_pool
 
 
@@ -140,7 +140,7 @@ async def _save_message(task_id: str, agent_role: str, msg_type: str, content: s
     pool = get_pool()
     async with pool.acquire() as conn:
         await conn.execute(
-            "INSERT INTO messages (task_id, agent_role, type, content) VALUES ($1, $2, $3, $4)",
+            "INSERT INTO agentos_messages (task_id, agent_role, type, content) VALUES ($1, $2, $3, $4)",
             uuid.UUID(task_id), agent_role, msg_type, content,
         )
 
@@ -149,7 +149,7 @@ async def _update_task_status(task_id: str, status: str):
     pool = get_pool()
     async with pool.acquire() as conn:
         await conn.execute(
-            "UPDATE tasks SET status=$1, updated_at=NOW() WHERE id=$2",
+            "UPDATE agentos_tasks SET status=$1, updated_at=NOW() WHERE id=$2",
             status, uuid.UUID(task_id),
         )
 
@@ -158,6 +158,6 @@ async def _save_task_result(task_id: str, result: str):
     pool = get_pool()
     async with pool.acquire() as conn:
         await conn.execute(
-            "UPDATE tasks SET result=$1, status='done', updated_at=NOW() WHERE id=$2",
+            "UPDATE agentos_tasks SET result=$1, status='done', updated_at=NOW() WHERE id=$2",
             result, uuid.UUID(task_id),
         )

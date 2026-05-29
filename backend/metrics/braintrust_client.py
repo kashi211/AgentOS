@@ -65,7 +65,7 @@ async def _fetch_qa_info(task_id: str) -> dict:
         async with pool.acquire() as conn:
             # Latest QA agent_output message contains the JSON verdict
             rows = await conn.fetch(
-                "SELECT content FROM messages WHERE task_id=$1 AND agent_role='qa' AND type='agent_output' ORDER BY created_at",
+                "SELECT content FROM agentos_messages WHERE task_id=$1 AND agent_role='qa' AND type='agent_output' ORDER BY created_at",
                 _uuid.UUID(task_id),
             )
             revision_count = len(rows)
@@ -120,7 +120,7 @@ async def log_task_completion(
         pool = get_pool()
         async with pool.acquire() as conn:
             await conn.execute(
-                """INSERT INTO task_metrics
+                """INSERT INTO agentos_task_metrics
                    (task_id, agent_role, preset_id, model, input_tokens, output_tokens, cost_usd, latency_ms)
                    VALUES ($1,'__eval__',$2,'judge',$3,$4,$5,$6)""",
                 _uuid.UUID(task_id), preset_id,
@@ -129,7 +129,7 @@ async def log_task_completion(
                 scores.get("quality", 0),
             )
             await conn.execute(
-                """INSERT INTO messages (task_id, agent_role, type, content, metadata)
+                """INSERT INTO agentos_messages (task_id, agent_role, type, content, metadata)
                    VALUES ($1, 'system', 'eval', $2, $3::jsonb)""",
                 _uuid.UUID(task_id),
                 scores.get("reasoning", ""),

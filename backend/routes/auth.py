@@ -36,11 +36,11 @@ async def register(body: RegisterBody):
     # Hash password
     password_hash = bcrypt.hashpw(body.password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
     async with pool.acquire() as conn:
-        existing = await conn.fetchrow("SELECT id FROM users WHERE email=$1", body.email.lower())
+        existing = await conn.fetchrow("SELECT id FROM agentos_users WHERE email=$1", body.email.lower())
         if existing:
             raise HTTPException(400, "Email already registered")
         row = await conn.fetchrow(
-            "INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id, email",
+            "INSERT INTO agentos_users (email, password_hash) VALUES ($1, $2) RETURNING id, email",
             body.email.lower(),
             password_hash,
         )
@@ -54,7 +54,7 @@ async def login(body: LoginBody):
     pool = get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT id, email, password_hash FROM users WHERE email=$1",
+            "SELECT id, email, password_hash FROM agentos_users WHERE email=$1",
             body.email.lower(),
         )
     if not row:

@@ -36,7 +36,14 @@ async def _create_schema():
 
 
 SCHEMA_SQL = """
-CREATE TABLE IF NOT EXISTS tasks (
+CREATE TABLE IF NOT EXISTS agentos_users (
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email         TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    created_at    TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS agentos_tasks (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     goal        TEXT NOT NULL,
     status      VARCHAR(50) DEFAULT 'pending',
@@ -45,9 +52,9 @@ CREATE TABLE IF NOT EXISTS tasks (
     updated_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS subtasks (
+CREATE TABLE IF NOT EXISTS agentos_subtasks (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    task_id         UUID REFERENCES tasks(id) ON DELETE CASCADE,
+    task_id         UUID REFERENCES agentos_tasks(id) ON DELETE CASCADE,
     agent_role      VARCHAR(50) NOT NULL,
     description     TEXT NOT NULL,
     status          VARCHAR(50) DEFAULT 'pending',
@@ -57,9 +64,9 @@ CREATE TABLE IF NOT EXISTS subtasks (
     updated_at      TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS messages (
+CREATE TABLE IF NOT EXISTS agentos_messages (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    task_id     UUID REFERENCES tasks(id) ON DELETE CASCADE,
+    task_id     UUID REFERENCES agentos_tasks(id) ON DELETE CASCADE,
     agent_role  VARCHAR(50),
     type        VARCHAR(50),
     content     TEXT NOT NULL,
@@ -67,106 +74,99 @@ CREATE TABLE IF NOT EXISTS messages (
     created_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS memory (
+CREATE TABLE IF NOT EXISTS agentos_memory (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    task_id     UUID REFERENCES tasks(id) ON DELETE CASCADE,
+    task_id     UUID REFERENCES agentos_tasks(id) ON DELETE CASCADE,
     agent_role  VARCHAR(50),
     content     TEXT NOT NULL,
     memory_type VARCHAR(50) DEFAULT 'short_term',
     created_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS custom_presets (
+CREATE TABLE IF NOT EXISTS agentos_custom_presets (
     id          TEXT PRIMARY KEY,
     data        JSONB NOT NULL,
     created_at  TIMESTAMPTZ DEFAULT NOW(),
     updated_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_messages_task_id ON messages(task_id);
-CREATE INDEX IF NOT EXISTS idx_subtasks_task_id ON subtasks(task_id);
-CREATE INDEX IF NOT EXISTS idx_memory_task_agent ON memory(task_id, agent_role);
+CREATE INDEX IF NOT EXISTS idx_agentos_messages_task_id ON agentos_messages(task_id);
+CREATE INDEX IF NOT EXISTS idx_agentos_subtasks_task_id ON agentos_subtasks(task_id);
+CREATE INDEX IF NOT EXISTS idx_agentos_memory_task_agent ON agentos_memory(task_id, agent_role);
 
-CREATE TABLE IF NOT EXISTS users (
-    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    email         TEXT UNIQUE NOT NULL,
-    password_hash TEXT NOT NULL,
-    created_at    TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Defensive migrations: add any column that may be missing on existing DBs
--- (CREATE TABLE IF NOT EXISTS skips re-creation, so columns added later need explicit migrations)
+-- Defensive column migrations: add any column missing on existing DBs.
+-- (CREATE TABLE IF NOT EXISTS skips re-creation, so late-added columns need explicit ALTER.)
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='tasks' AND column_name='goal') THEN
-    ALTER TABLE tasks ADD COLUMN goal TEXT NOT NULL DEFAULT '';
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='agentos_tasks' AND column_name='goal') THEN
+    ALTER TABLE agentos_tasks ADD COLUMN goal TEXT NOT NULL DEFAULT '';
   END IF;
 END $$;
 
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='tasks' AND column_name='status') THEN
-    ALTER TABLE tasks ADD COLUMN status VARCHAR(50) DEFAULT 'pending';
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='agentos_tasks' AND column_name='status') THEN
+    ALTER TABLE agentos_tasks ADD COLUMN status VARCHAR(50) DEFAULT 'pending';
   END IF;
 END $$;
 
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='tasks' AND column_name='result') THEN
-    ALTER TABLE tasks ADD COLUMN result TEXT;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='agentos_tasks' AND column_name='result') THEN
+    ALTER TABLE agentos_tasks ADD COLUMN result TEXT;
   END IF;
 END $$;
 
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='tasks' AND column_name='updated_at') THEN
-    ALTER TABLE tasks ADD COLUMN updated_at TIMESTAMPTZ DEFAULT NOW();
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='agentos_tasks' AND column_name='updated_at') THEN
+    ALTER TABLE agentos_tasks ADD COLUMN updated_at TIMESTAMPTZ DEFAULT NOW();
   END IF;
 END $$;
 
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='subtasks' AND column_name='result') THEN
-    ALTER TABLE subtasks ADD COLUMN result TEXT;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='agentos_subtasks' AND column_name='result') THEN
+    ALTER TABLE agentos_subtasks ADD COLUMN result TEXT;
   END IF;
 END $$;
 
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='subtasks' AND column_name='revision_count') THEN
-    ALTER TABLE subtasks ADD COLUMN revision_count INT DEFAULT 0;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='agentos_subtasks' AND column_name='revision_count') THEN
+    ALTER TABLE agentos_subtasks ADD COLUMN revision_count INT DEFAULT 0;
   END IF;
 END $$;
 
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='subtasks' AND column_name='updated_at') THEN
-    ALTER TABLE subtasks ADD COLUMN updated_at TIMESTAMPTZ DEFAULT NOW();
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='agentos_subtasks' AND column_name='updated_at') THEN
+    ALTER TABLE agentos_subtasks ADD COLUMN updated_at TIMESTAMPTZ DEFAULT NOW();
   END IF;
 END $$;
 
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='tasks' AND column_name='user_id') THEN
-    ALTER TABLE tasks ADD COLUMN user_id UUID REFERENCES users(id);
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='agentos_tasks' AND column_name='user_id') THEN
+    ALTER TABLE agentos_tasks ADD COLUMN user_id UUID REFERENCES agentos_users(id);
   END IF;
 END $$;
 
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='tasks' AND column_name='preset_id') THEN
-    ALTER TABLE tasks ADD COLUMN preset_id TEXT;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='agentos_tasks' AND column_name='preset_id') THEN
+    ALTER TABLE agentos_tasks ADD COLUMN preset_id TEXT;
   END IF;
 END $$;
 
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='tasks' AND column_name='web_search') THEN
-    ALTER TABLE tasks ADD COLUMN web_search BOOLEAN DEFAULT FALSE;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='agentos_tasks' AND column_name='web_search') THEN
+    ALTER TABLE agentos_tasks ADD COLUMN web_search BOOLEAN DEFAULT FALSE;
   END IF;
 END $$;
 
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='tasks' AND column_name='parent_task_id') THEN
-    ALTER TABLE tasks ADD COLUMN parent_task_id UUID REFERENCES tasks(id) ON DELETE SET NULL;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='agentos_tasks' AND column_name='parent_task_id') THEN
+    ALTER TABLE agentos_tasks ADD COLUMN parent_task_id UUID REFERENCES agentos_tasks(id) ON DELETE SET NULL;
   END IF;
 END $$;
 
-CREATE INDEX IF NOT EXISTS idx_tasks_user_id ON tasks(user_id);
+CREATE INDEX IF NOT EXISTS idx_agentos_tasks_user_id ON agentos_tasks(user_id);
 
-CREATE TABLE IF NOT EXISTS task_metrics (
+CREATE TABLE IF NOT EXISTS agentos_task_metrics (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    task_id     UUID REFERENCES tasks(id) ON DELETE CASCADE,
+    task_id     UUID REFERENCES agentos_tasks(id) ON DELETE CASCADE,
     agent_role  VARCHAR(100) NOT NULL,
     preset_id   TEXT,
     model       VARCHAR(100),
@@ -176,6 +176,6 @@ CREATE TABLE IF NOT EXISTS task_metrics (
     latency_ms  INT DEFAULT 0,
     created_at  TIMESTAMPTZ DEFAULT NOW()
 );
-CREATE INDEX IF NOT EXISTS idx_task_metrics_task_id ON task_metrics(task_id);
-CREATE INDEX IF NOT EXISTS idx_task_metrics_preset_id ON task_metrics(preset_id);
+CREATE INDEX IF NOT EXISTS idx_agentos_task_metrics_task_id ON agentos_task_metrics(task_id);
+CREATE INDEX IF NOT EXISTS idx_agentos_task_metrics_preset_id ON agentos_task_metrics(preset_id);
 """

@@ -18,7 +18,7 @@ async def list_presets():
     pool = get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            "SELECT id, data FROM custom_presets ORDER BY created_at DESC"
+            "SELECT id, data FROM agentos_custom_presets ORDER BY created_at DESC"
         )
     return [json.loads(r["data"]) if isinstance(r["data"], str) else dict(r["data"]) for r in rows]
 
@@ -29,7 +29,7 @@ async def upsert_preset(preset_id: str, body: PresetUpsert):
     async with pool.acquire() as conn:
         await conn.execute(
             """
-            INSERT INTO custom_presets (id, data)
+            INSERT INTO agentos_custom_presets (id, data)
             VALUES ($1, $2::jsonb)
             ON CONFLICT (id) DO UPDATE
               SET data = $2::jsonb, updated_at = NOW()
@@ -45,7 +45,7 @@ async def delete_preset(preset_id: str):
     pool = get_pool()
     async with pool.acquire() as conn:
         result = await conn.execute(
-            "DELETE FROM custom_presets WHERE id = $1", preset_id
+            "DELETE FROM agentos_custom_presets WHERE id = $1", preset_id
         )
     if result == "DELETE 0":
         raise HTTPException(404, "Preset not found")
