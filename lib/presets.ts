@@ -64,14 +64,14 @@ export const BUILTIN_PRESETS: Preset[] = [
       "A full software team: CEO defines the scope, Planner breaks it down, Developer builds it, QA stress-tests it, Writer documents it. QA can loop Developer back for up to 2 revision cycles before escalating.",
     agents: [
       {
-        id: "ceo", role: "CEO", icon: "👔", color: "#f97316", model: "Claude Opus 4.7",
+        id: "ceo", role: "CEO", icon: "👔", color: "#1d4ed8", model: "Claude Opus 4.7",
         description: "Receives the user's goal, defines success criteria, and produces a structured execution plan.",
         responsibilities: ["Interprets ambiguous goals into clear deliverables", "Produces structured JSON execution plans", "Reviews final output quality", "Escalates blockers to the user"],
         systemPrompt: "You are the CEO of AgentOS. Given a goal, produce a structured execution plan assigning work to Planner, Developer, QA, and Writer agents...",
         tools: [],
       },
       {
-        id: "planner", role: "Planner", icon: "🗺️", color: "#ea580c", model: "Claude Opus 4.7",
+        id: "planner", role: "Planner", icon: "🗺️", color: "#1e40af", model: "Claude Opus 4.7",
         description: "Decomposes the CEO plan into a dependency-ordered list of concrete steps with agent assignments.",
         responsibilities: ["Breaks goals into dependency-ordered steps", "Assigns each step to the right agent", "Identifies steps that can run in parallel", "Surfaces constraints and edge cases upfront"],
         systemPrompt: "You are the Planner. Decompose the CEO's plan into a detailed, dependency-ordered JSON step list with agent assignments...",
@@ -113,12 +113,12 @@ export const BUILTIN_PRESETS: Preset[] = [
     tagline: "Source → Verify → Challenge → Publish",
     icon: "🔬",
     category: "Research",
-    categoryColor: "#ea580c",
+    categoryColor: "#1e40af",
     description:
       "A Researcher pulls sources, Fact-Checker independently verifies each claim, Devil's Advocate pokes holes in the argument, and Editor produces the final polished document. Three adversarial perspectives on every conclusion — something a single LLM call simply can't do.",
     agents: [
       {
-        id: "researcher", role: "Researcher", icon: "🔬", color: "#ea580c", model: "Claude Opus 4.7",
+        id: "researcher", role: "Researcher", icon: "🔬", color: "#1e40af", model: "Claude Opus 4.7",
         description: "Pulls primary and secondary sources, synthesizes information, and builds the initial research brief with citations.",
         responsibilities: ["Searches for primary and secondary sources", "Synthesizes information into structured briefs", "Identifies key claims that need verification", "Flags areas of uncertainty or conflicting evidence"],
         systemPrompt: "You are the Researcher. Pull together the best available sources on the given topic and synthesize them into a clear, structured brief. Always cite your sources and flag any claims that need independent verification.",
@@ -193,7 +193,7 @@ export const BUILTIN_PRESETS: Preset[] = [
         tools: [],
       },
       {
-        id: "synthesizer", role: "Synthesizer", icon: "🧠", color: "#ea580c", model: "Claude Opus 4.7",
+        id: "synthesizer", role: "Synthesizer", icon: "🧠", color: "#1e40af", model: "Claude Opus 4.7",
         description: "Integrates bull case, bear case, data, and risk into a final balanced investment decision memo.",
         responsibilities: ["Integrates all agent outputs into a unified memo", "Weighs bull vs. bear arguments with the data", "Produces a clear recommendation with rationale", "Identifies the key swing factors"],
         systemPrompt: "You are the Synthesizer. Take the analyst's thesis, the bear case, the data analysis, and the risk assessment and produce a final, balanced investment memo with a clear recommendation.",
@@ -233,7 +233,7 @@ export const BUILTIN_PRESETS: Preset[] = [
         tools: [],
       },
       {
-        id: "protection_checker", role: "Protection Checker", icon: "🛡️", color: "#ea580c", model: "Claude Sonnet 4.6",
+        id: "protection_checker", role: "Protection Checker", icon: "🛡️", color: "#1e40af", model: "Claude Sonnet 4.6",
         description: "Checks for missing standard legal protections that should typically be present in this type of agreement.",
         responsibilities: ["Identifies missing standard protective clauses", "Checks for IP assignment and confidentiality provisions", "Verifies dispute resolution and governing law clauses", "Flags missing termination and liability terms"],
         systemPrompt: "You are the Protection Checker. Review the document for missing standard protective provisions. Check for: IP assignment, NDA terms, limitation of liability, indemnification, dispute resolution, governing law, and termination rights.",
@@ -280,7 +280,7 @@ export const BUILTIN_PRESETS: Preset[] = [
         tools: [],
       },
       {
-        id: "brand_voice", role: "Brand Voice", icon: "🎯", color: "#ea580c", model: "Claude Sonnet 4.6",
+        id: "brand_voice", role: "Brand Voice", icon: "🎯", color: "#1e40af", model: "Claude Sonnet 4.6",
         description: "Checks the content against brand voice guidelines — tone, terminology, style, and messaging consistency.",
         responsibilities: ["Checks tone against brand voice guidelines", "Flags off-brand terminology or messaging", "Ensures consistent use of brand-specific language", "Verifies claims align with brand positioning"],
         systemPrompt: "You are the Brand Voice agent. Review the content for brand consistency. Check tone, terminology, and messaging against brand guidelines. Flag anything off-brand and suggest corrected versions.",
@@ -308,12 +308,12 @@ export const BUILTIN_PRESETS: Preset[] = [
     tagline: "Summarize → Critique → Synthesize → Cite",
     icon: "🎓",
     category: "Research",
-    categoryColor: "#ea580c",
+    categoryColor: "#1e40af",
     description:
       "Summarizer distills papers, Critic evaluates methodology quality and flags bias, Synthesizer identifies consensus and disagreement across the literature, Citation agent formats all references. A week of PhD-level literature review in an hour.",
     agents: [
       {
-        id: "summarizer", role: "Summarizer", icon: "📚", color: "#ea580c", model: "Claude Opus 4.7",
+        id: "summarizer", role: "Summarizer", icon: "📚", color: "#1e40af", model: "Claude Opus 4.7",
         description: "Reads and distills each paper into a structured summary: key claims, methodology, findings, and limitations.",
         responsibilities: ["Distills each paper into a structured summary", "Extracts key claims, methodology, and findings", "Identifies study limitations and scope", "Uses a consistent format for all papers"],
         systemPrompt: "You are the Summarizer. For each paper, produce a structured summary: (1) Core thesis, (2) Methodology, (3) Key findings, (4) Limitations, (5) Notable quotes.",

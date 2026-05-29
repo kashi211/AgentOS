@@ -184,21 +184,21 @@ const PRESET_ICONS: Record<string, React.ElementType> = {
 };
 
 const AGENT_COLORS: Record<string, string> = {
-  ceo: "#f97316", planner: "#ea580c", developer: "#0284c7", qa: "#059669",
-  writer: "#d97706", researcher: "#ea580c", fact_checker: "#059669",
+  ceo: "#1d4ed8", planner: "#1e40af", developer: "#0284c7", qa: "#059669",
+  writer: "#d97706", researcher: "#1e40af", fact_checker: "#059669",
   devils_advocate: "#dc2626", editor: "#d97706", analyst: "#059669",
   bear_case: "#dc2626", data_agent: "#0284c7", risk_agent: "#d97706",
-  synthesizer: "#ea580c", reader: "#78716c", clause_flagger: "#dc2626",
-  protection_checker: "#ea580c", legal_editor: "#d97706",
-  content_writer: "#ec4899", seo_agent: "#0284c7", brand_voice: "#ea580c",
-  content_editor: "#d97706", summarizer: "#ea580c", critic: "#dc2626",
+  synthesizer: "#1e40af", reader: "#78716c", clause_flagger: "#dc2626",
+  protection_checker: "#1e40af", legal_editor: "#d97706",
+  content_writer: "#ec4899", seo_agent: "#0284c7", brand_voice: "#1e40af",
+  content_editor: "#d97706", summarizer: "#1e40af", critic: "#dc2626",
   literature_synthesizer: "#059669", citation_agent: "#78716c", system: "#78716c",
 };
 function agentColor(role: string) { return AGENT_COLORS[role.toLowerCase().replace(/ /g,"_")] ?? "#64748b"; }
 
 const STATUS_CFG: Record<TaskStatus, { label: string; color: string }> = {
   pending:   { label: "Pending",   color: "#94a3b8" },
-  planning:  { label: "Planning",  color: "#f97316" },
+  planning:  { label: "Planning",  color: "#1d4ed8" },
   executing: { label: "Executing", color: "#0284c7" },
   reviewing: { label: "Reviewing", color: "#d97706" },
   done:      { label: "Done",      color: "#059669" },
@@ -700,7 +700,7 @@ function DeliveryPanel({ task, messages, preset, fileCount }: { task: Task; mess
             <div className="space-y-4">
               {quality.score!==undefined&&<div><div className="flex justify-between mb-1.5"><span className="text-xs font-semibold" style={{ color: "var(--muted)" }}>Quality score</span><span className="text-sm font-bold" style={{ color: quality.score>=7?"#059669":"#dc2626" }}>{quality.score}/10</span></div><div className="h-2 rounded-full overflow-hidden" style={{ background: "var(--card-border)" }}><div className="h-full rounded-full" style={{ width:`${(quality.score/10)*100}%`, background: quality.score>=7?"#059669":"#dc2626" }}/></div></div>}
               <div className="grid grid-cols-3 gap-3">
-                {[{label:"Verdict",value:quality.verdict==="pass"?"Pass":"Fail",icon:quality.verdict==="pass"?CheckCircle2:XCircle,color:quality.verdict==="pass"?"#059669":"#dc2626"},{label:"Reviewer",value:quality.reviewer,icon:ShieldCheck,color:"#ea580c"},{label:"Cycles",value:String(quality.revisions),icon:RefreshCw,color:"#0284c7"}].map(({label,value,icon:Icon,color})=>(
+                {[{label:"Verdict",value:quality.verdict==="pass"?"Pass":"Fail",icon:quality.verdict==="pass"?CheckCircle2:XCircle,color:quality.verdict==="pass"?"#059669":"#dc2626"},{label:"Reviewer",value:quality.reviewer,icon:ShieldCheck,color:"#1e40af"},{label:"Cycles",value:String(quality.revisions),icon:RefreshCw,color:"#0284c7"}].map(({label,value,icon:Icon,color})=>(
                   <div key={label} className="rounded-xl p-3 text-center" style={{ background: "var(--card)", border: "1px solid var(--card-border)" }}><Icon size={15} className="mx-auto mb-1" style={{ color }}/><p className="text-xs font-bold" style={{ color: "var(--foreground)" }}>{value}</p><p className="text-xs" style={{ color: "var(--muted)" }}>{label}</p></div>
                 ))}
               </div>
@@ -1090,7 +1090,7 @@ export default function ProjectsPage() {
         <RefinementModal
           questions={refineQuestions}
           loading={refineLoading}
-          accentColor={selectedPreset?.categoryColor ?? "#f97316"}
+          accentColor={selectedPreset?.categoryColor ?? "#1d4ed8"}
           onConfirm={answers => confirmTask(answers, refineQuestions)}
           onSkip={() => confirmTask({}, [])}
         />
