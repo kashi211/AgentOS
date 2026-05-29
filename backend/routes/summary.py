@@ -45,7 +45,7 @@ async def get_task_summary(task_id: str) -> SummaryResponse:
     async with pool.acquire() as conn:
         # Verify task exists and is done
         task = await conn.fetchrow(
-            "SELECT status, goal FROM agentos_tasks WHERE id=$1", uuid.UUID(task_id)
+            "SELECT status, goal FROM agent_os_tasks WHERE id=$1", uuid.UUID(task_id)
         )
         if not task:
             raise HTTPException(status_code=404, detail="Task not found")
@@ -54,7 +54,7 @@ async def get_task_summary(task_id: str) -> SummaryResponse:
 
         # Fetch all agent outputs — prefer final/writer-type roles, fall back to all
         rows = await conn.fetch(
-            """SELECT agent_role, content FROM agentos_messages
+            """SELECT agent_role, content FROM agent_os_messages
                WHERE task_id=$1 AND type='agent_output'
                ORDER BY created_at ASC""",
             uuid.UUID(task_id),

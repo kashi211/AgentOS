@@ -7,7 +7,7 @@ Produces rich, long-form markdown output directly in its response text.
 from __future__ import annotations
 
 from agents.base import BaseAgent, SONNET
-from agentos_memory.store import MemoryStore
+from agent_os_memory.store import MemoryStore
 
 
 class WorkerAgent(BaseAgent):

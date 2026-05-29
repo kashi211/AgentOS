@@ -27,7 +27,7 @@ async def edit_project(task_id: str, body: EditRequest):
 
     # Load the original task
     async with pool.acquire() as conn:
-        original = await conn.fetchrow("SELECT * FROM agentos_tasks WHERE id=$1", uuid.UUID(task_id))
+        original = await conn.fetchrow("SELECT * FROM agent_os_tasks WHERE id=$1", uuid.UUID(task_id))
     if not original:
         raise HTTPException(404, "Project not found")
 
@@ -50,7 +50,7 @@ async def edit_project(task_id: str, body: EditRequest):
     # Create a new task record for this edit run
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            "INSERT INTO agentos_tasks (goal, status, parent_task_id) VALUES ($1, 'pending', $2) RETURNING id",
+            "INSERT INTO agent_os_tasks (goal, status, parent_task_id) VALUES ($1, 'pending', $2) RETURNING id",
             f"[Edit] {body.message}",
             uuid.UUID(task_id),
         )
@@ -107,6 +107,6 @@ async def _run_edit(edit_task_id: str, goal: str, output_task_id: str):
         await broadcast(edit_task_id, {"type": "error", "agent": "system", "content": str(e)})
         async with pool.acquire() as conn:
             await conn.execute(
-                "UPDATE agentos_tasks SET status='failed', updated_at=NOW() WHERE id=$1",
+                "UPDATE agent_os_tasks SET status='failed', updated_at=NOW() WHERE id=$1",
                 uuid.UUID(edit_task_id),
             )

@@ -9,7 +9,7 @@ from typing import Any
 
 import anthropic
 from config import settings
-from agentos_memory.store import MemoryStore
+from agent_os_memory.store import MemoryStore
 
 _AGENT_CONFIG_FILE = "agent_configs.json"
 
@@ -106,7 +106,7 @@ class BaseAgent(ABC):
         # Retrieve long-term memories from Pinecone
         memory_context = ""
         try:
-            from agentos_memory.long_term import retrieve_memories
+            from agent_os_memory.long_term import retrieve_memories
             memories = await retrieve_memories(user_message[:500], exclude_task_id=self.task_id)
             if memories:
                 memory_context = "\n\n## Relevant past work\n" + "\n".join(memories)
@@ -219,7 +219,7 @@ class BaseAgent(ABC):
 
         # Store long-term memory in Pinecone
         try:
-            from agentos_memory.long_term import store_memory
+            from agent_os_memory.long_term import store_memory
             await store_memory(self.task_id, self.role, user_message[:200], result[:1500])
         except Exception as e:
             print(f"[pinecone] store error (silent): {e}")

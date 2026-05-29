@@ -37,8 +37,8 @@ async def get_metrics_summary():
                 AVG(m.latency_ms) as avg_latency_ms,
                 PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY m.latency_ms) as p50_latency_ms,
                 PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY m.latency_ms) as p95_latency_ms
-            FROM agentos_task_metrics m
-            JOIN agentos_tasks t ON t.id = m.task_id
+            FROM agent_os_task_metrics m
+            JOIN agent_os_tasks t ON t.id = m.task_id
             WHERE m.agent_role != '__eval__'
             GROUP BY COALESCE(t.preset_id, 'custom')
             ORDER BY total_cost_usd DESC
@@ -55,7 +55,7 @@ async def get_metrics_summary():
                 AVG(m.latency_ms) as avg_latency_ms,
                 PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY m.latency_ms) as p50_latency_ms,
                 PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY m.latency_ms) as p95_latency_ms
-            FROM agentos_task_metrics m
+            FROM agent_os_task_metrics m
             WHERE m.agent_role != '__eval__'
             GROUP BY m.agent_role
             ORDER BY total_cost_usd DESC
@@ -70,7 +70,7 @@ async def get_metrics_summary():
                 SUM(output_tokens) as total_output_tokens,
                 SUM(cost_usd) as total_cost_usd,
                 AVG(latency_ms) as avg_latency_ms
-            FROM agentos_task_metrics
+            FROM agent_os_task_metrics
             WHERE agent_role != '__eval__'
         """)
 
@@ -78,9 +78,9 @@ async def get_metrics_summary():
         eval_rows = await conn.fetch("""
             SELECT m.task_id::text, t.goal, t.preset_id, msg.metadata,
                    m.created_at
-            FROM agentos_task_metrics m
-            JOIN agentos_tasks t ON t.id = m.task_id
-            LEFT JOIN agentos_messages msg ON msg.task_id = m.task_id AND msg.type = 'eval'
+            FROM agent_os_task_metrics m
+            JOIN agent_os_tasks t ON t.id = m.task_id
+            LEFT JOIN agent_os_messages msg ON msg.task_id = m.task_id AND msg.type = 'eval'
             WHERE m.agent_role = '__eval__'
             ORDER BY m.created_at DESC
             LIMIT 10
@@ -108,12 +108,12 @@ async def get_task_metrics(task_id: str):
     async with pool.acquire() as conn:
         rows = await conn.fetch("""
             SELECT agent_role, model, input_tokens, output_tokens, cost_usd, latency_ms, created_at
-            FROM agentos_task_metrics
+            FROM agent_os_task_metrics
             WHERE task_id = $1 AND agent_role != '__eval__'
             ORDER BY created_at
         """, uuid.UUID(task_id))
         eval_row = await conn.fetchrow("""
-            SELECT metadata FROM agentos_messages
+            SELECT metadata FROM agent_os_messages
             WHERE task_id = $1 AND type = 'eval'
             ORDER BY created_at DESC LIMIT 1
         """, uuid.UUID(task_id))

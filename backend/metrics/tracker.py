@@ -29,7 +29,7 @@ async def save_metric(
         pool = get_pool()
         async with pool.acquire() as conn:
             await conn.execute(
-                """INSERT INTO agentos_task_metrics
+                """INSERT INTO agent_os_task_metrics
                    (task_id, agent_role, preset_id, model, input_tokens, output_tokens, cost_usd, latency_ms)
                    VALUES ($1,$2,$3,$4,$5,$6,$7,$8)""",
                 uuid.UUID(task_id), agent_role, preset_id, model,

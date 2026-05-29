@@ -180,7 +180,7 @@ async def run_browser_test(
     console_errors: list[str] = []
     js_errors: list[str] = []
 
-    with tempfile.TemporaryDirectory(prefix="agentos_qa_") as tmpdir:
+    with tempfile.TemporaryDirectory(prefix="agent_os_qa_") as tmpdir:
         # Write all files to temp dir (create subdirs as needed)
         for filename, content in files.items():
             dest = Path(tmpdir) / filename

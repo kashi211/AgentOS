@@ -62,7 +62,7 @@ async def create_task(body: TaskCreate, authorization: str = Header(None)):
     async with pool.acquire() as conn:
         if user_id:
             row = await conn.fetchrow(
-                "INSERT INTO agentos_tasks (goal, preset_id, web_search, user_id) VALUES ($1, $2, $3, $4) RETURNING id, goal, status, created_at",
+                "INSERT INTO agent_os_tasks (goal, preset_id, web_search, user_id) VALUES ($1, $2, $3, $4) RETURNING id, goal, status, created_at",
                 body.goal,
                 body.preset_id,
                 body.web_search,
@@ -70,7 +70,7 @@ async def create_task(body: TaskCreate, authorization: str = Header(None)):
             )
         else:
             row = await conn.fetchrow(
-                "INSERT INTO agentos_tasks (goal, preset_id, web_search) VALUES ($1, $2, $3) RETURNING id, goal, status, created_at",
+                "INSERT INTO agent_os_tasks (goal, preset_id, web_search) VALUES ($1, $2, $3) RETURNING id, goal, status, created_at",
                 body.goal,
                 body.preset_id,
                 body.web_search,
@@ -105,7 +105,7 @@ async def cancel_task(task_id: str):
     pool = get_pool()
     async with pool.acquire() as conn:
         await conn.execute(
-            "UPDATE agentos_tasks SET status='cancelled', updated_at=NOW() WHERE id=$1",
+            "UPDATE agent_os_tasks SET status='cancelled', updated_at=NOW() WHERE id=$1",
             uuid.UUID(task_id),
         )
     await broadcast(task_id, {"type": "cancelled", "agent": "system", "content": "Task cancelled"})
@@ -123,7 +123,7 @@ async def delete_task(task_id: str):
 
     pool = get_pool()
     async with pool.acquire() as conn:
-        result = await conn.execute("DELETE FROM agentos_tasks WHERE id=$1", uuid.UUID(task_id))
+        result = await conn.execute("DELETE FROM agent_os_tasks WHERE id=$1", uuid.UUID(task_id))
     if result == "DELETE 0":
         raise HTTPException(status_code=404, detail="Task not found")
     return {"deleted": True}
@@ -133,12 +133,12 @@ async def delete_task(task_id: str):
 async def get_task(task_id: str, authorization: str = Header(None)):
     pool = get_pool()
     async with pool.acquire() as conn:
-        task = await conn.fetchrow("SELECT * FROM agentos_tasks WHERE id=$1", uuid.UUID(task_id))
+        task = await conn.fetchrow("SELECT * FROM agent_os_tasks WHERE id=$1", uuid.UUID(task_id))
         if not task:
             raise HTTPException(404, "Task not found")
 
-        subtasks = await conn.fetch("SELECT * FROM agentos_subtasks WHERE task_id=$1 ORDER BY created_at", uuid.UUID(task_id))
-        messages = await conn.fetch("SELECT * FROM agentos_messages WHERE task_id=$1 ORDER BY created_at", uuid.UUID(task_id))
+        subtasks = await conn.fetch("SELECT * FROM agent_os_subtasks WHERE task_id=$1 ORDER BY created_at", uuid.UUID(task_id))
+        messages = await conn.fetch("SELECT * FROM agent_os_messages WHERE task_id=$1 ORDER BY created_at", uuid.UUID(task_id))
 
     return {
         "id": str(task["id"]),
@@ -159,12 +159,12 @@ async def list_tasks(authorization: str = Header(None)):
     async with pool.acquire() as conn:
         if user:
             rows = await conn.fetch(
-                "SELECT id, goal, status, preset_id, created_at, parent_task_id FROM agentos_tasks WHERE user_id=$1 ORDER BY created_at DESC LIMIT 50",
+                "SELECT id, goal, status, preset_id, created_at, parent_task_id FROM agent_os_tasks WHERE user_id=$1 ORDER BY created_at DESC LIMIT 50",
                 uuid.UUID(user["sub"]),
             )
         else:
             rows = await conn.fetch(
-                "SELECT id, goal, status, preset_id, created_at, parent_task_id FROM agentos_tasks ORDER BY created_at DESC LIMIT 50"
+                "SELECT id, goal, status, preset_id, created_at, parent_task_id FROM agent_os_tasks ORDER BY created_at DESC LIMIT 50"
             )
     return [{"id": str(r["id"]), "goal": r["goal"], "status": r["status"], "preset_id": r["preset_id"], "created_at": r["created_at"].isoformat(), "parent_task_id": str(r["parent_task_id"]) if r["parent_task_id"] else None} for r in rows]
 
@@ -231,7 +231,7 @@ async def _run_graph(task_id: str, goal: str, output_task_id: str | None = None,
                 pool = get_pool()
                 async with pool.acquire() as conn:
                     await conn.execute(
-                        "UPDATE agentos_tasks SET status='failed', updated_at=NOW() WHERE id=$1",
+                        "UPDATE agent_os_tasks SET status='failed', updated_at=NOW() WHERE id=$1",
                         uuid.UUID(task_id),
                     )
             finally:
@@ -334,8 +334,8 @@ async def _run_graph(task_id: str, goal: str, output_task_id: str | None = None,
         try:
             pool = get_pool()
             async with pool.acquire() as conn:
-                task_row = await conn.fetchrow("SELECT goal, preset_id, result FROM agentos_tasks WHERE id=$1", uuid.UUID(task_id))
-                cost_row = await conn.fetchrow("SELECT SUM(cost_usd) as total_cost, SUM(latency_ms) as total_latency FROM agentos_task_metrics WHERE task_id=$1 AND agent_role!='__eval__'", uuid.UUID(task_id))
+                task_row = await conn.fetchrow("SELECT goal, preset_id, result FROM agent_os_tasks WHERE id=$1", uuid.UUID(task_id))
+                cost_row = await conn.fetchrow("SELECT SUM(cost_usd) as total_cost, SUM(latency_ms) as total_latency FROM agent_os_task_metrics WHERE task_id=$1 AND agent_role!='__eval__'", uuid.UUID(task_id))
             if task_row and task_row["result"]:
                 from metrics.braintrust_client import log_task_completion
                 asyncio.create_task(log_task_completion(
@@ -361,7 +361,7 @@ async def _run_graph(task_id: str, goal: str, output_task_id: str | None = None,
         pool = get_pool()
         async with pool.acquire() as conn:
             await conn.execute(
-                "UPDATE agentos_tasks SET status='failed', updated_at=NOW() WHERE id=$1",
+                "UPDATE agent_os_tasks SET status='failed', updated_at=NOW() WHERE id=$1",
                 uuid.UUID(task_id),
             )
     finally:
