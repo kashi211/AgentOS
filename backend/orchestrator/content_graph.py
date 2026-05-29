@@ -11,7 +11,7 @@ from agents.content_writer import ContentWriterAgent
 from agents.seo_agent import SEOAgent
 from agents.brand_voice import BrandVoiceAgent
 from agents.content_editor import ContentEditorAgent
-from agent_os_memory.store import MemoryStore
+from memory.store import MemoryStore
 from db.connection import get_pool
 
 

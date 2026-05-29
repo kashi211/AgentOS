@@ -10,7 +10,7 @@ from agents.reader import ReaderAgent
 from agents.clause_flagger import ClauseFlagAgent
 from agents.legal_editor import LegalEditorAgent
 from agents.protection_checker import ProtectionCheckerAgent
-from agent_os_memory.store import MemoryStore
+from memory.store import MemoryStore
 from db.connection import get_pool
 
 MAX_REVISIONS = 2

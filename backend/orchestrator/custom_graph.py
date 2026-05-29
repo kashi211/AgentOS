@@ -11,7 +11,7 @@ import uuid
 import asyncio
 
 from agents.base import BaseAgent, SONNET, OPUS, _HAIKU, client
-from agent_os_memory.store import MemoryStore
+from memory.store import MemoryStore
 from db.connection import get_pool
 from routes.ws import broadcast
 

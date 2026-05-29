@@ -10,7 +10,7 @@ from agents.researcher import ResearcherAgent
 from agents.fact_checker import FactCheckerAgent
 from agents.devils_advocate import DevilsAdvocateAgent
 from agents.research_editor import ResearchEditorAgent
-from agent_os_memory.store import MemoryStore
+from memory.store import MemoryStore
 from db.connection import get_pool
 
 MAX_REVISIONS = 2

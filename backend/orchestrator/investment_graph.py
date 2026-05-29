@@ -10,7 +10,7 @@ from agents.analyst import AnalystAgent
 from agents.bear_case import BearCaseAgent
 from agents.risk_agent import RiskAgent
 from agents.synthesizer import SynthesizerAgent
-from agent_os_memory.store import MemoryStore
+from memory.store import MemoryStore
 from db.connection import get_pool
 
 MAX_REVISIONS = 2

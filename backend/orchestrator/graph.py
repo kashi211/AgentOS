@@ -14,7 +14,7 @@ from agents.developer import DeveloperAgent
 from agents.worker import WorkerAgent
 from agents.qa import QAAgent
 from agents.writer import WriterAgent
-from agent_os_memory.store import MemoryStore
+from memory.store import MemoryStore
 from db.connection import get_pool
 from routes.ws import broadcast
 

@@ -10,7 +10,7 @@ from agents.summarizer import SummarizerAgent
 from agents.critic import CriticAgent
 from agents.literature_synthesizer import LiteratureSynthesizerAgent
 from agents.citation_agent import CitationAgent
-from agent_os_memory.store import MemoryStore
+from memory.store import MemoryStore
 from db.connection import get_pool
 
 MAX_REVISIONS = 1
